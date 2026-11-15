@@ -374,7 +374,7 @@ def write_csv(name: str, rows: list[dict]) -> Path:
     for r in rows:
         columns += [k for k in r if k not in columns and not k.startswith("_")]
     with path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore", lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     return path
