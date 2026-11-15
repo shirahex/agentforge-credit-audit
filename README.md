@@ -82,8 +82,15 @@ same tools ([`eval/results/RESULTS.md`](eval/results/RESULTS.md)):
 | Model + DiCE, no agents | 395 | 12% | 35% | 100% | 0 of 22 |
 
 The 100% of the first two rows holds by construction, since the auditor
-applies these checks. The baseline through a single prompt needs a provider
-key and is not run yet.
+applies these checks.
+
+With a language model (Groq free plan, `openai/gpt-oss-20b`, 12 files): 58
+agent steps, all written by the model, none fallen back to rules; 8% of its
+answers quoted a number no tool had produced and were sent back by the
+guard. The same files through a single prompt without tools: the decision
+matches the scoring model on 8 files of 12, and none of its 24 proposals
+respects the recourse rules. Reading and limits:
+[`docs/result-analysis.md`](docs/result-analysis.md).
 
 Details and figures: [`ml/reports/MODEL_CARD.md`](ml/reports/MODEL_CARD.md).
 
@@ -121,6 +128,8 @@ committed): `audit.sqlite` (runs, events, case store), `checkpoints.sqlite`
 
 ```
 python eval/run_eval.py        # result tables: full system, ablations, baselines (about one minute)
+python eval/llm_preflight.py   # with a provider: checks that the model answers, sets the answer budget
+python eval/run_eval.py --llm  # adds the language model runs and the single-prompt baseline
 python eval/figures.py         # figures of the result tables
 python eval/demo_reports.py    # PDF audit report of the six demo files, in docs/sample-reports/
 ```

@@ -1,0 +1,6 @@
+agent,steps,steps_asking_the_llm,steps_written_by_the_llm,fallback_to_rules,answers,accepted,rejected_structure,rejected_check,rejected_numbers,no_answer,llm_calls,tokens_per_step,ms_per_step
+Analyste-Dossier,12,12,12,0.0,16,0.75,0.0,0.0,0.25,0.0,16,828.4,17427.7
+Modèle-Scoring,12,12,12,0.0,13,0.9231,0.0,0.0,0.0769,0.0,13,1159.4,15202.7
+Générateur-Contrefactuels,7,7,7,0.0,7,1.0,0.0,0.0,0.0,0.0,7,1399.4,14552.4
+Vérificateur-Équité,15,15,15,0.0,15,1.0,0.0,0.0,0.0,0.0,15,825.2,13680.2
+Arbitre et Rédacteur,12,12,12,0.0,12,1.0,0.0,0.0,0.0,0.0,12,1977.9,14805.8

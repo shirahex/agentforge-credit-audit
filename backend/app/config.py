@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -30,6 +31,10 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "")
 LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
 LLM_MIN_INTERVAL_SECONDS = float(os.getenv("LLM_MIN_INTERVAL_SECONDS", "0"))
+# Reasoning models spend part of max_tokens on their reasoning: this factor enlarges every answer budget.
+LLM_MAX_TOKENS_SCALE = float(os.getenv("LLM_MAX_TOKENS_SCALE", "1"))
+# Extra fields merged into every request body, as JSON, for example {"reasoning_effort": "low"}.
+LLM_EXTRA_BODY = json.loads(os.getenv("LLM_EXTRA_BODY") or "{}")
 
 # --- Fairness audit (task I1)
 # Age bands used for the group metrics: upper bounds, inclusive. The last band is open.
