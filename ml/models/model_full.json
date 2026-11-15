@@ -1,0 +1,221 @@
+{
+  "version": "german-credit-full-2026-11-15",
+  "variant": "full",
+  "columns": [
+    "credit_amount",
+    "duration_months",
+    "purpose=car_new",
+    "purpose=car_used",
+    "purpose=furniture",
+    "purpose=radio_tv",
+    "purpose=appliances",
+    "purpose=repairs",
+    "purpose=education",
+    "purpose=retraining",
+    "purpose=business",
+    "purpose=other",
+    "installment_rate",
+    "other_debtors=none",
+    "other_debtors=co_applicant",
+    "other_debtors=guarantor",
+    "checking_status=negative",
+    "checking_status=low",
+    "checking_status=high",
+    "checking_status=no_account",
+    "savings=lt_100",
+    "savings=100_to_500",
+    "savings=500_to_1000",
+    "savings=ge_1000",
+    "savings=unknown",
+    "credit_history=no_credits",
+    "credit_history=all_paid_here",
+    "credit_history=existing_paid",
+    "credit_history=past_delays",
+    "credit_history=critical",
+    "existing_credits",
+    "other_installment_plans=bank",
+    "other_installment_plans=stores",
+    "other_installment_plans=none",
+    "property=real_estate",
+    "property=savings_insurance",
+    "property=car_other",
+    "property=none",
+    "employment=unemployed",
+    "employment=lt_1y",
+    "employment=1_to_4y",
+    "employment=4_to_7y",
+    "employment=ge_7y",
+    "job=unskilled_non_resident",
+    "job=unskilled_resident",
+    "job=skilled",
+    "job=highly_skilled",
+    "housing=rent",
+    "housing=own",
+    "housing=free",
+    "residence_since",
+    "telephone",
+    "age",
+    "sex=male",
+    "sex=female",
+    "dependents",
+    "foreign_worker"
+  ],
+  "features": [
+    "credit_amount",
+    "duration_months",
+    "purpose",
+    "installment_rate",
+    "other_debtors",
+    "checking_status",
+    "savings",
+    "credit_history",
+    "existing_credits",
+    "other_installment_plans",
+    "property",
+    "employment",
+    "job",
+    "housing",
+    "residence_since",
+    "telephone",
+    "age",
+    "sex",
+    "dependents",
+    "foreign_worker"
+  ],
+  "calibration": {
+    "method": "platt",
+    "a": 0.917019,
+    "b": -0.028399
+  },
+  "threshold": 0.26,
+  "cost_matrix": {
+    "false_approval": 5.0,
+    "false_refusal": 1.0
+  },
+  "params": {
+    "objective": "binary",
+    "learning_rate": 0.03,
+    "n_estimators": 250,
+    "num_leaves": 8,
+    "max_depth": 4,
+    "min_child_samples": 10,
+    "subsample": 0.7,
+    "subsample_freq": 1,
+    "colsample_bytree": 0.4,
+    "reg_lambda": 1.0,
+    "reg_alpha": 0.0,
+    "min_split_gain": 0.0,
+    "random_state": 42,
+    "monotone_constraints_method": "advanced"
+  },
+  "monotone_increasing": [
+    "credit_amount",
+    "duration_months",
+    "installment_rate"
+  ],
+  "data": {
+    "train_rows": 800,
+    "test_rows": 200,
+    "default_rate": 0.3
+  },
+  "cv": {
+    "scheme": "5-fold stratified, 3 repeats",
+    "lightgbm_auc": 0.7882,
+    "baseline_logreg_auc": 0.7675,
+    "calibrated_brier": 0.1648,
+    "configs_tried": 40
+  },
+  "policies": {
+    "balanced": {
+      "threshold": 0.26,
+      "rule": "maximum KS on out-of-fold predictions",
+      "auc": 0.8062,
+      "auc_ci95": [
+        0.7377,
+        0.8711
+      ],
+      "ks": 0.5238,
+      "brier": 0.1571,
+      "log_loss": 0.4785,
+      "expected_cost": 0.525,
+      "cost_approve_all": 1.5,
+      "cost_refuse_all": 0.7,
+      "refusal_rate": 0.495,
+      "confusion": {
+        "bad_refused": 49,
+        "bad_approved": 11,
+        "good_refused": 50,
+        "good_approved": 90
+      }
+    },
+    "cost_optimal": {
+      "threshold": 0.14,
+      "rule": "minimum expected cost, 5:1 cost matrix",
+      "auc": 0.8062,
+      "auc_ci95": [
+        0.7377,
+        0.8711
+      ],
+      "ks": 0.5238,
+      "brier": 0.1571,
+      "log_loss": 0.4785,
+      "expected_cost": 0.57,
+      "cost_approve_all": 1.5,
+      "cost_refuse_all": 0.7,
+      "refusal_rate": 0.72,
+      "confusion": {
+        "bad_refused": 55,
+        "bad_approved": 5,
+        "good_refused": 89,
+        "good_approved": 51
+      }
+    }
+  },
+  "test": {
+    "auc": 0.8062,
+    "auc_ci95": [
+      0.7377,
+      0.8711
+    ],
+    "ks": 0.5238,
+    "brier": 0.1571,
+    "log_loss": 0.4785,
+    "expected_cost": 0.525,
+    "cost_approve_all": 1.5,
+    "cost_refuse_all": 0.7,
+    "refusal_rate": 0.495,
+    "confusion": {
+      "bad_refused": 49,
+      "bad_approved": 11,
+      "good_refused": 50,
+      "good_approved": 90
+    }
+  },
+  "test_baseline_logreg": {
+    "auc": 0.8048,
+    "ks": 0.6,
+    "brier": 0.1554
+  },
+  "importance_gain": {
+    "checking_status": 0.181,
+    "duration_months": 0.1061,
+    "purpose": 0.0854,
+    "credit_history": 0.0798,
+    "savings": 0.0754,
+    "age": 0.0721,
+    "credit_amount": 0.0606,
+    "employment": 0.0599,
+    "property": 0.0511,
+    "other_installment_plans": 0.0492,
+    "installment_rate": 0.0342,
+    "sex": 0.0258,
+    "housing": 0.0254,
+    "job": 0.0228,
+    "residence_since": 0.0176,
+    "other_debtors": 0.0174,
+    "telephone": 0.013,
+    "existing_credits": 0.0098,
+    "dependents": 0.0081,
+    "foreign_worker": 0.0052
+  }
+}

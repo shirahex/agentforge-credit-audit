@@ -1,45 +1,59 @@
-"""Scoring tools. Owner: Marouane (tasks M2, M3).
+"""Scoring and explanation tools (task M3).
 
-PLACEHOLDER: a hand-written formula stands in for the trained model so the
-graph, the API and the interface can run from day one. Replace the body of
-`score_applicant` with a call to the saved model and `top_factors` with
-real SHAP values. The signature must not change.
+`score_applicant` returns the calibrated default probability, the decision
+and the main factors. Factors are exact TreeSHAP values computed by
+LightGBM, summed per attribute and expressed in calibrated log-odds.
 """
 from __future__ import annotations
 
 import math
+from typing import Iterable
+
+import numpy as np
 
 from app import config
+from app.domain.features import BY_NAME
+from app.domain.model import ScoringModel, get_model
 from app.schemas import Factor, LoanApplication, ScoreResult
 
-_SAVINGS = {"none": 0.45, "low": 0.2, "medium": -0.2, "high": -0.6}
-_CHECKING = {"negative": 0.7, "none": 0.1, "low": 0.0, "high": -0.6}
-_HOUSING = {"own": -0.3, "rent": 0.15, "free": 0.1}
+
+def model() -> ScoringModel:
+    return get_model(config.MODEL_VARIANT)
 
 
-def _contributions(app: LoanApplication) -> dict[str, float]:
-    return {
-        "duration_months": 0.04 * (app.duration_months - 20),
-        "credit_amount": 0.00016 * (app.credit_amount - 3000),
-        "age": -0.02 * (app.age - 35),
-        "employment_years": -0.07 * (app.employment_years - 4),
-        "savings": _SAVINGS[app.savings],
-        "checking_status": _CHECKING[app.checking_status],
-        "housing": _HOUSING[app.housing],
-    }
+def threshold() -> float:
+    return config.REFUSAL_THRESHOLD if config.REFUSAL_THRESHOLD is not None else model().threshold
 
 
-def score_applicant(app: LoanApplication) -> ScoreResult:
-    contrib = _contributions(app)
-    p = 1 / (1 + math.exp(-(-0.9 + sum(contrib.values()))))
-    decision = "refused" if p >= config.REFUSAL_THRESHOLD else "approved"
-    band = "high" if p >= 0.6 else "medium" if p >= 0.35 else "low"
-    top = sorted(contrib.items(), key=lambda kv: abs(kv[1]), reverse=True)[:5]
+def probabilities(rows: Iterable[dict]) -> np.ndarray:
+    """Default probability for many attribute dictionaries in one model call."""
+    return model().predict_default(list(rows))
+
+
+def risk_band(p: float) -> str:
+    t = threshold()
+    return "low" if p < t else "medium" if p < max(0.5, 2 * t) else "high"
+
+
+def explain_applicant(app: LoanApplication, top_k: int = 6) -> tuple[list[Factor], float]:
+    """Exact SHAP factors of one applicant and the model's base probability."""
+    row = app.features()
+    contrib, base = model().contributions(row)
+    top = sorted(contrib.items(), key=lambda kv: abs(kv[1]), reverse=True)[:top_k]
+    factors = [
+        Factor(feature=name, label=BY_NAME[name].label, value=row[name],
+               value_label=BY_NAME[name].label_of(row[name]), contribution=round(c, 4))
+        for name, c in top
+    ]
+    return factors, round(1 / (1 + math.exp(-base)), 4)
+
+
+def score_applicant(app: LoanApplication, explain: bool = True) -> ScoreResult:
+    m = model()
+    p = float(m.predict_default([app.features()])[0])
+    factors, base = explain_applicant(app) if explain else ([], 0.0)
     return ScoreResult(
-        default_probability=round(p, 4),
-        decision=decision,
-        risk_band=band,
-        top_factors=[
-            Factor(feature=f, value=getattr(app, f), contribution=round(c, 4)) for f, c in top
-        ],
+        default_probability=round(p, 4), threshold=threshold(),
+        decision="refused" if p >= threshold() else "approved", risk_band=risk_band(p),
+        base_probability=base, top_factors=factors, model_version=m.version,
     )

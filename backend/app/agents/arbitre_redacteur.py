@@ -2,10 +2,13 @@
 
 Finalises the audit or escalates it to a human reviewer, then writes the
 applicant summary and the audit report.
-TODO: LangGraph interrupt for the human review step, LLM-written summary,
-PDF report through tools/report.py, storage in the case store.
+
+PLACEHOLDER logic: three escalation rules and a template summary.
+TODO: LangGraph interrupt for the human review step, LLM-written letter,
+PDF report through tools/report.py.
 """
 from app import config
+from app.agents.base import plural
 from app.graph.state import AuditState
 from app.memory import case_store
 from app.schemas import AuditDecision
@@ -17,33 +20,28 @@ def run(state: AuditState) -> AuditState:
     p = score.default_probability
 
     reason = None
-    if abs(p - config.REFUSAL_THRESHOLD) <= config.BORDERLINE_MARGIN:
-        reason = "score within the borderline band"
-    elif not fairness.flip_test_passed:
-        reason = "sensitive attribute flip test failed"
+    if not fairness.flip_test_passed:
+        reason = "the decision depends on a sensitive attribute"
+    elif abs(p - score.threshold) <= config.BORDERLINE_MARGIN:
+        reason = "the score falls within the borderline band around the threshold"
     elif score.decision == "refused" and not cfs:
-        reason = "no valid and actionable counterfactual found"
+        reason = f"no verified way to approval was found after {plural(state.get('attempts', 0), 'attempt')}"
 
     if score.decision == "approved":
-        summary = "Application approved."
+        summary = f"Application approved: default risk {p:.0%}, below the {score.threshold:.0%} threshold."
     elif cfs:
-        best = min(cfs, key=lambda c: len(c.changes))
-        steps = ", ".join(f"{c.feature} from {c.from_value} to {c.to_value}" for c in best.changes)
-        summary = f"Application refused. Smallest verified path to approval: {steps}."
+        best = min(cfs, key=lambda c: c.cost)
+        summary = (f"Application refused: default risk {p:.0%}, threshold {score.threshold:.0%}. "
+                   f"Easiest verified way to approval: {best.statement[:1].lower() + best.statement[1:]}")
     else:
-        summary = "Application refused. No verified path to approval."
+        summary = f"Application refused: default risk {p:.0%}, threshold {score.threshold:.0%}. No verified way to approval."
 
     decision = AuditDecision(
-        applicant_id=app.applicant_id,
-        decision=score.decision,
-        default_probability=p,
-        escalated=reason is not None,
-        escalation_reason=reason,
-        summary=summary,
-        counterfactuals=cfs,
-        fairness=fairness,
-        attempts=state.get("attempts", 0),
+        applicant_id=app.applicant_id, decision=score.decision, default_probability=p,
+        escalated=reason is not None, escalation_reason=reason, summary=summary,
+        counterfactuals=cfs, fairness=fairness, attempts=state.get("attempts", 0),
     )
     case_store.add(app, decision)
-    log = f"Escalated to human review: {reason}." if reason else f"Audit finalised. {summary}"
-    return {"decision": decision, "log": log, "status": "escalated" if reason else "finished"}
+    log = f"Sent to human review: {reason}." if reason else "Audit closed without escalation."
+    return {"decision": decision, "log": log, "reasoning": summary, "mode": "rules", "tool_calls": [],
+            "status": "escalated" if reason else "finished"}

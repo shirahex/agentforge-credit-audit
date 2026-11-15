@@ -9,13 +9,13 @@ venv/
 # Secrets
 .env
 
-# Data and models (downloaded or generated locally)
-ml/data/*
-!ml/data/README.md
-ml/models/*
-!ml/models/.gitkeep
+# Large or private data: only the German Credit files are versioned
+ml/data/raw/*
+!ml/data/raw/german.csv
+!ml/data/raw/german.names.txt
 *.sqlite
 *.db
+eval/results/
 
 # Node
 node_modules/
