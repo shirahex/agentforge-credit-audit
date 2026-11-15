@@ -59,6 +59,16 @@ export interface FeatureChange {
   to_label: string
 }
 
+export interface Plausibility {
+  score: number
+  knn_distance: number
+  limit: number
+  applicant_distance: number
+  plausible: boolean
+  neighbours_repaid: number
+  k: number
+}
+
 export interface Counterfactual {
   changes: FeatureChange[]
   new_probability: number
@@ -70,6 +80,22 @@ export interface Counterfactual {
   cost: number
   source: 'exhaustive' | 'dice'
   statement: string
+  plausibility: Plausibility | null
+}
+
+export interface PastAudit {
+  run_id: string
+  applicant_id: string
+  similarity: number
+  decision: Decision
+  final_outcome: Decision
+  default_probability: number
+  escalated: boolean
+  reviewed: boolean
+  attempts: number
+  paths: number
+  best_path: string
+  closed_at: string
 }
 
 export interface SimilarCase {
@@ -86,6 +112,7 @@ export interface AnalystReport {
   peer_count: number
   peers: SimilarCase[]
   note: string
+  precedents: PastAudit[]
 }
 
 export interface ToolCall {
@@ -100,6 +127,23 @@ export interface FairnessVerdict {
   reasons: string[]
   metrics: Record<string, number>
   flip_test_passed: boolean
+  verdict: string
+  notes: string[]
+  group_context: GroupContext[]
+  candidates_checked: number
+  candidates_kept: number
+}
+
+export interface GroupContext {
+  attribute: string
+  label: string
+  group: string
+  approval_rate: number
+  best_group: string
+  best_approval_rate: number
+  gap: number
+  comparable: boolean
+  disadvantaged: boolean
 }
 
 export interface AuditDecision {
@@ -113,6 +157,13 @@ export interface AuditDecision {
   fairness: FairnessVerdict | null
   attempts: number
   report_path: string | null
+  report_id: string | null
+  letter: string
+  letter_status: 'draft' | 'final'
+  review: Review | null
+  final_outcome: Decision | null
+  precedents: PastAudit[]
+  precedent_conflict: string | null
 }
 
 export type NodeId =
@@ -155,8 +206,11 @@ export interface AuditSummary {
   applicant_id: string
   started_at: string
   finished_at: string | null
+  status: 'running' | 'awaiting_review' | 'finished' | 'error'
   done: boolean
   decision: Decision | null
+  final_outcome: Decision | null
+  report_id: string | null
   default_probability: number | null
   escalated: boolean
   attempts: number
@@ -176,6 +230,47 @@ export interface Health {
   variant: string
   threshold: number
   llm: { provider: string; model: string; enabled: boolean; calls: number; failures: number; last_error: string }
+  store: { audits: number; cases: number; awaiting_review: number }
+}
+
+export interface GroupStats {
+  n: number
+  selection_rate: number
+  true_positive_rate: number
+  false_positive_rate: number
+  small_sample: boolean
+}
+
+export interface AttributeFairness {
+  label: string
+  groups: Record<string, GroupStats>
+  demographic_parity_difference: number
+  demographic_parity_ratio: number
+  equalized_odds_difference: number
+  least_approved: string
+  most_approved: string
+  ci95: { demographic_parity_difference: [number, number]; equalized_odds_difference: [number, number] } | null
+  reliable_gap: number | null
+  alert: boolean
+  four_fifths_ok: boolean
+}
+
+export interface FairnessReport {
+  variant: string
+  model_version: string
+  threshold: number
+  files: number
+  approval_rate: number
+  attributes: Record<string, AttributeFairness>
+}
+
+export interface FairnessComparison {
+  full: FairnessReport
+  unaware: FairnessReport
+  tolerance: number
+  min_group: number
+  reading: string[]
+  definitions: Record<string, string>
 }
 
 export interface PolicyMetrics {
@@ -230,4 +325,5 @@ export interface ModelCard {
     audit: Record<string, AuditStats>
   } | null
   labels: Record<string, string>
+  fairness: FairnessComparison | null
 }
