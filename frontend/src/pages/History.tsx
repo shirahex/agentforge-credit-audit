@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { listAudits } from '../lib/api'
+import { listAudits, reportUrl } from '../lib/api'
 import { dateTime, pct } from '../lib/format'
 import type { AuditSummary } from '../types'
 
 function outcome(a: AuditSummary): { text: string; tone: string } {
   if (!a.done) return { text: 'Running', tone: 'text-accent' }
   if (a.review) return { text: `${a.review.outcome === 'approved' ? 'Approved' : 'Refused'} by ${a.review.reviewer}`, tone: 'text-ink' }
+  if (a.status === 'error') return { text: 'Stopped on an error', tone: 'text-negative' }
   if (a.escalated) return { text: 'Waiting for a reviewer', tone: 'text-caution' }
   return a.decision === 'approved' ? { text: 'Approved', tone: 'text-positive' } : { text: 'Refused', tone: 'text-negative' }
 }
@@ -23,7 +24,9 @@ export function History() {
   return (
     <>
       <h1 className="text-4xl font-semibold sm:text-5xl">History</h1>
-      <p className="mt-3 max-w-2xl text-lg text-muted">Every audit run since the backend started, most recent first.</p>
+      <p className="mt-3 max-w-2xl text-lg text-muted">
+        Every audit, most recent first. Audits are stored on disk: they stay here when the backend restarts.
+      </p>
 
       {error && <p className="mt-8 text-sm text-negative">The list could not be loaded because the backend does not answer.</p>}
       {audits?.length === 0 && (
@@ -36,10 +39,10 @@ export function History() {
       )}
       {audits && audits.length > 0 && (
         <div className="mt-10 overflow-x-auto rounded-panel bg-surface ring-1 ring-hairline">
-          <table className="w-full min-w-[42rem] text-left">
+          <table className="w-full min-w-[46rem] text-left">
             <thead className="text-sm text-muted">
               <tr className="border-b border-hairline">
-                {['Applicant', 'Outcome', 'Default risk', 'Attempts', 'Ways to approval', 'Started'].map((h, i) => (
+                {['Applicant', 'Outcome', 'Default risk', 'Attempts', 'Ways to approval', 'Started', 'Report'].map((h, i) => (
                   <th key={h} className={`px-6 py-3.5 font-normal ${i >= 2 && i <= 4 ? 'text-right' : ''}`}>
                     {h}
                   </th>
@@ -65,6 +68,13 @@ export function History() {
                     <td className="num px-6 py-4 text-right text-muted">{a.attempts}</td>
                     <td className="num px-6 py-4 text-right text-muted">{a.paths}</td>
                     <td className="num px-6 py-4 text-muted">{dateTime(a.started_at)}</td>
+                    <td className="px-6 py-4">
+                      {a.report_id && (
+                        <a href={reportUrl(a.run_id)} onClick={(e) => e.stopPropagation()} className="text-accent hover:underline">
+                          PDF
+                        </a>
+                      )}
+                    </td>
                   </tr>
                 )
               })}

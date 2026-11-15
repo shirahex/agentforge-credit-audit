@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plot, polyline } from '../components/Plot'
 import { getModelCard } from '../lib/api'
 import { pct } from '../lib/format'
-import type { AuditStats, ModelCard } from '../types'
+import type { AttributeFairness, AuditStats, FairnessComparison, ModelCard } from '../types'
 
 const INK = 'var(--color-ink)'
 const ACCENT = 'var(--color-accent)'
@@ -40,6 +40,94 @@ function RecourseBar({ s }: { s: AuditStats }) {
         ))}
       </ul>
     </div>
+  )
+}
+
+function GroupRates({ a }: { a: AttributeFairness }) {
+  const small = Object.values(a.groups).some((g) => g.small_sample)
+  const ci = a.ci95?.demographic_parity_difference
+  return (
+    <div>
+      <ul className="space-y-2">
+        {Object.entries(a.groups).map(([name, g]) => (
+          <li key={name} className="grid grid-cols-[5.5rem_minmax(0,1fr)_5.5rem] items-center gap-3 text-sm">
+            <span className="truncate">{name.replace('_', ' ')}</span>
+            <span className="h-2 rounded-full bg-hairline">
+              <span
+                className={`block h-2 rounded-full ${g.small_sample ? 'bg-faint' : 'bg-ink'}`}
+                style={{ width: `${g.selection_rate * 100}%` }}
+              />
+            </span>
+            <span className="num text-right text-muted">
+              {p0(g.selection_rate)} <span className="text-faint">n={g.n}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="num mt-3 text-sm">
+        <span className={`font-medium ${a.alert ? 'text-caution' : ''}`}>
+          Approval gap {(a.demographic_parity_difference * 100).toFixed(0)} points
+        </span>
+        {ci && (
+          <span className="text-muted">
+            {' '}
+            (95% interval {(ci[0] * 100).toFixed(0)} to {(ci[1] * 100).toFixed(0)})
+          </span>
+        )}
+      </p>
+      <p className="num mt-0.5 text-sm text-muted">
+        Ratio {a.demographic_parity_ratio.toFixed(2)}, equalized odds gap {(a.equalized_odds_difference * 100).toFixed(0)} points
+        {small ? '. Too few files in one group to conclude.' : a.alert ? '. Above the tolerance.' : '.'}
+      </p>
+    </div>
+  )
+}
+
+function FairnessSection({ f }: { f: FairnessComparison }) {
+  return (
+    <section className="mt-16">
+      <h2 className="text-2xl font-semibold">Fairness across groups</h2>
+      <p className="mt-2 max-w-3xl text-muted">
+        Share of files approved in each group of the {f.full.files} test files, computed with Fairlearn. The approval gap
+        is the demographic parity difference; the equalized odds gap compares how often good payers, and bad payers, are
+        approved in each group. The right column is a model that never sees sex, age or foreign-worker status: what it
+        still shows reaches the decision through correlated attributes.
+      </p>
+      <div className="mt-6 overflow-x-auto rounded-panel bg-surface ring-1 ring-hairline">
+        <table className="w-full min-w-[44rem] text-left">
+          <thead className="border-b border-hairline text-sm text-muted">
+            <tr>
+              <Th> </Th>
+              <Th>Audited model</Th>
+              <Th>Without protected attributes</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-hairline">
+            {Object.keys(f.full.attributes).map((key) => (
+              <tr key={key} className="align-top">
+                <td className="px-5 py-5 font-medium">{f.full.attributes[key].label}</td>
+                <td className="px-5 py-5">
+                  <GroupRates a={f.full.attributes[key]} />
+                </td>
+                <td className="px-5 py-5">
+                  <GroupRates a={f.unaware.attributes[key]} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ul className="mt-4 max-w-3xl space-y-1.5 text-sm text-soft">
+        {f.reading.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+      <p className="mt-3 max-w-3xl text-sm text-muted">
+        A gap above {(f.tolerance * 100).toFixed(0)} points between groups of at least {f.min_group} files is reported as a
+        disparity. The ratio is the lowest approval rate divided by the highest; the four-fifths rule asks for 0.80 or
+        more. With 200 files the intervals are wide.
+      </p>
+    </section>
   )
 }
 
@@ -342,6 +430,8 @@ export function Model() {
           </div>
         </section>
       )}
+
+      {card.fairness && <FairnessSection f={card.fairness} />}
 
       {summary && (
         <section className="mt-16 max-w-3xl">
