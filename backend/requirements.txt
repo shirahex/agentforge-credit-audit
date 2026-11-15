@@ -1,0 +1,7 @@
+# Core backend: enough to run the API, the agent graph and the tests.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+langgraph>=1.0
+httpx>=0.27
+pytest>=8.0
