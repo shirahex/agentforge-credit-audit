@@ -1,53 +1,68 @@
-"""HTTP API.
+"""HTTP API (task I4 on top of the first routes).
 
-GET  /health                    liveness, model and LLM status
+GET  /health                    liveness, model, LLM status, state of the stores
 GET  /api/schema                applicant attributes (labels, options, ranges) for the form
 GET  /api/samples               demo applicant files taken from the test set
-GET  /api/model                 model card data: metrics, policies, curves, importance
+GET  /api/model                 model card data: metrics, policies, curves, importance, group fairness
+GET  /api/fairness              Fairlearn group metrics of both model variants
 POST /api/audits                start an audit, returns {run_id}
-GET  /api/audits                history of audits
+GET  /api/audits                history of audits, kept across restarts
 GET  /api/audits/{id}           full record: application, events, decision, review
 GET  /api/audits/{id}/events    server-sent events, one AgentEvent per agent step
-POST /api/audits/{id}/review    human reviewer's decision on an escalated audit
+POST /api/audits/{id}/review    reviewer's decision: resumes the interrupted graph and closes the audit
+GET  /api/audits/{id}/report    PDF audit report
+GET  /api/audits/{id}/letter    applicant letter (French, plain text)
+GET  /api/audits/{id}/trace     JSONL trace of every step and tool call
 
-Owner: Imane (task I4) for hardening: persistent run store, LangGraph
-interrupt behind the review endpoint, report download. The routes above
-are the minimal versions the interface needs.
+Runs are executed by graph/runner.py on the durable graph (SQLite
+checkpoints, human interrupt). Runs and events live in SQLite
+(memory/run_store.py): nothing is kept in the memory of this process, so
+the history, an event stream and a pending review survive a restart, and
+the runs a restart interrupted are resumed when the API starts.
 """
 from __future__ import annotations
 
 import asyncio
 import json
-import threading
-import time
-import uuid
-from datetime import datetime, timezone
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import config
 from app.domain import features
 from app.domain.model import MODEL_DIR, ROOT
-from app.graph.build import AGENT_LABELS, graph
+from app.graph import trace
+from app.graph.runner import service
 from app.llm import client as llm
+from app.memory import case_store, run_store
 from app.samples import load_samples
-from app.schemas import AgentEvent, LoanApplication
+from app.schemas import AuditDecision, LoanApplication
 from app.tools import scoring
+from app.tools.fairness import group_fairness_comparison
+from app.tools.report import render_report
 
-app = FastAPI(title="AgentForge Credit Audit")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    resumed = service().recover()  # runs interrupted by the previous shutdown continue from their checkpoint
+    if resumed:
+        print(f"Resumed {len(resumed)} interrupted audit(s): {', '.join(resumed)}")
+    yield
+
+
+app = FastAPI(title="AgentForge Credit Audit", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
-
-RUNS: dict[str, dict] = {}
-_PAYLOAD_KEYS = ("analysis", "score", "fairness", "decision")
 
 
 class Review(BaseModel):
@@ -56,52 +71,28 @@ class Review(BaseModel):
     comment: str = Field(default="", max_length=1000)
 
 
-def _execute(run_id: str, application: LoanApplication) -> None:
-    run = RUNS[run_id]
-    try:
-        for update in graph.stream({"application": application}, stream_mode="updates"):
-            for node, out in update.items():
-                time.sleep(config.STEP_DELAY_SECONDS)
-                payload = {k: out[k].model_dump(mode="json") for k in _PAYLOAD_KEYS if k in out}
-                if "counterfactuals" in out:
-                    payload["counterfactuals"] = [c.model_dump(mode="json") for c in out["counterfactuals"]]
-                if "explanation" in out:
-                    payload["explanation"] = out["explanation"]
-                if "decision" in out:
-                    run["decision"] = out["decision"].model_dump(mode="json")
-                run["events"].append(AgentEvent(
-                    run_id=run_id, seq=len(run["events"]), agent=AGENT_LABELS.get(node, node), node=node,
-                    status=out.get("status", "completed"), message=out.get("log", ""),
-                    reasoning=out.get("reasoning", ""), mode=out.get("mode", "rules"),
-                    tool_calls=out.get("tool_calls", []), payload=payload))
-    except Exception as exc:  # surfaced to the interface instead of a silent stop
-        run["events"].append(AgentEvent(run_id=run_id, seq=len(run["events"]), agent="System", node="system",
-                                        status="error", message=f"{type(exc).__name__}: {exc}"))
-    finally:
-        run["done"] = True
-        run["finished_at"] = datetime.now(timezone.utc).isoformat()
-
-
 def _record(run_id: str) -> dict:
-    run = RUNS.get(run_id)
+    run = run_store.get(run_id)
     if run is None:
         raise HTTPException(404, "unknown audit")
     return run
 
 
-def _public(run_id: str, run: dict, full: bool) -> dict:
+def _public(run: dict, full: bool) -> dict:
     d = run["decision"]
     out = {
-        "run_id": run_id, "applicant_id": run["application"].applicant_id, "started_at": run["started_at"],
-        "finished_at": run.get("finished_at"), "done": run["done"],
+        "run_id": run["run_id"], "applicant_id": run["applicant_id"], "started_at": run["started_at"],
+        "finished_at": run["finished_at"], "status": run["status"], "done": run["status"] != run_store.RUNNING,
         "decision": d["decision"] if d else None,
+        "final_outcome": d.get("final_outcome") if d else None,
         "default_probability": d["default_probability"] if d else None,
         "escalated": d["escalated"] if d else False, "attempts": d["attempts"] if d else 0,
         "paths": len(d["counterfactuals"]) if d else 0, "review": run["review"],
+        "report_id": d.get("report_id") if d else None, "error": run["error"],
     }
     if full:
-        out["application"] = run["application"].model_dump(mode="json")
-        out["events"] = [e.model_dump(mode="json") for e in run["events"]]
+        out["application"] = run["application"]
+        out["events"] = run_store.events(run["run_id"])
         out["result"] = d
     return out
 
@@ -110,7 +101,9 @@ def _public(run_id: str, run: dict, full: bool) -> dict:
 def health() -> dict:
     m = scoring.model()
     return {"status": "ok", "model": m.version, "variant": m.variant, "threshold": scoring.threshold(),
-            "llm": llm.describe()}
+            "llm": llm.describe(),
+            "store": {"audits": len(run_store.list_runs(10_000)), "cases": case_store.count(),
+                      "awaiting_review": len(run_store.with_status(run_store.AWAITING_REVIEW))}}
 
 
 @app.get("/api/schema")
@@ -122,6 +115,11 @@ def schema() -> dict:
 @app.get("/api/samples")
 def samples() -> list[dict]:
     return load_samples()
+
+
+@app.get("/api/fairness")
+def fairness() -> dict:
+    return group_fairness_comparison()
 
 
 @app.get("/api/model")
@@ -136,42 +134,40 @@ def model_card() -> dict:
         "comparison": json.loads(other_file.read_text(encoding="utf-8")) if other_file.exists() else None,
         "summary": json.loads(curves_file.read_text(encoding="utf-8")) if curves_file.exists() else None,
         "labels": {f.name: f.label for f in features.FEATURES},
+        "fairness": group_fairness_comparison(),
     }
 
 
 @app.post("/api/audits")
 def start_audit(application: LoanApplication) -> dict:
-    run_id = uuid.uuid4().hex[:12]
-    RUNS[run_id] = {"application": application, "events": [], "done": False, "decision": None, "review": None,
-                    "started_at": datetime.now(timezone.utc).isoformat()}
-    threading.Thread(target=_execute, args=(run_id, application), daemon=True).start()
-    return {"run_id": run_id}
+    return {"run_id": service().start(application)}
 
 
 @app.get("/api/audits")
 def list_audits() -> list[dict]:
-    return [_public(rid, run, full=False) for rid, run in reversed(list(RUNS.items()))]
+    return [_public(run, full=False) for run in run_store.list_runs()]
 
 
 @app.get("/api/audits/{run_id}")
 def audit_record(run_id: str) -> dict:
-    return _public(run_id, _record(run_id), full=True)
+    return _public(_record(run_id), full=True)
 
 
 @app.get("/api/audits/{run_id}/events")
 async def audit_events(run_id: str) -> StreamingResponse:
-    run = _record(run_id)
+    _record(run_id)
 
     async def stream():
-        sent = 0
+        sent = -1
         while True:
-            while sent < len(run["events"]):
-                yield f"data: {run['events'][sent].model_dump_json()}\n\n"
-                sent += 1
-            if run["done"] and sent == len(run["events"]):
+            status = run_store.status(run_id)  # read before the events: nothing is written after a run stops
+            for event in run_store.events(run_id, after=sent):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                sent = event["seq"]
+            if status != run_store.RUNNING:
                 yield "event: end\ndata: {}\n\n"
                 return
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.08)
 
     return StreamingResponse(stream(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
@@ -180,9 +176,50 @@ async def audit_events(run_id: str) -> StreamingResponse:
 @app.post("/api/audits/{run_id}/review")
 def review_audit(run_id: str, review: Review) -> dict:
     run = _record(run_id)
-    if not run["done"] or run["decision"] is None:
+    if run["status"] == run_store.RUNNING or run["decision"] is None:
         raise HTTPException(409, "audit still running")
     if not run["decision"]["escalated"]:
         raise HTTPException(409, "audit was not escalated")
-    run["review"] = {**review.model_dump(), "at": datetime.now(timezone.utc).isoformat()}
-    return _public(run_id, run, full=True)
+    if run["status"] != run_store.AWAITING_REVIEW or not service().awaiting_review(run_id):
+        raise HTTPException(409, "audit already reviewed")
+    service().review(run_id, review.model_dump())  # resumes the LangGraph interrupt
+    return _public(_record(run_id), full=True)
+
+
+def _finished(run_id: str) -> tuple[dict, AuditDecision]:
+    run = _record(run_id)
+    if run["status"] == run_store.RUNNING or run["decision"] is None:
+        raise HTTPException(409, "audit still running")
+    return run, AuditDecision(**run["decision"])
+
+
+@app.get("/api/audits/{run_id}/report")
+def audit_report(run_id: str) -> FileResponse:
+    run, decision = _finished(run_id)
+    path = Path(decision.report_path) if decision.report_path else None
+    if path is None or not path.exists():  # report folder emptied: the trace is enough to rebuild it
+        steps = trace.read(run_id) or [{**e, "duration_ms": 0.0} for e in run_store.events(run_id)]
+        rebuilt = render_report(decision, steps, application=LoanApplication(**run["application"]), run_id=run_id)
+        if rebuilt is None:
+            raise HTTPException(404, "no report for this audit")
+        path = Path(rebuilt)
+    return FileResponse(path, media_type="application/pdf",
+                        filename=f"audit-{run['applicant_id']}-{decision.report_id or run_id}.pdf")
+
+
+@app.get("/api/audits/{run_id}/letter")
+def audit_letter(run_id: str) -> PlainTextResponse:
+    run, decision = _finished(run_id)
+    if not decision.letter:
+        raise HTTPException(404, "no letter for this audit")
+    return PlainTextResponse(decision.letter, media_type="text/plain; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="lettre-{run["applicant_id"]}.txt"'})
+
+
+@app.get("/api/audits/{run_id}/trace")
+def audit_trace(run_id: str) -> FileResponse:
+    _record(run_id)
+    file = trace.trace_file(run_id)
+    if not file.exists():
+        raise HTTPException(404, "no trace for this audit")
+    return FileResponse(file, media_type="application/x-ndjson", filename=f"trace-{run_id}.jsonl")
