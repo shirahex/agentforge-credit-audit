@@ -37,6 +37,7 @@ past applicants). A proposal is sound when it passes all four.
 
 ## Other scripts
 
+- `figures.py`: figures of the result tables, written to `results/figures/` and read in `docs/result-analysis.md`
 - `demo_reports.py`: PDF audit report of each of the six demo files, written to `docs/sample-reports/`
 - `measure_llm_limits.py`: limits of the configured LLM provider and the matching `LLM_MIN_INTERVAL_SECONDS` (see `docs/llm-limits.md`)
 

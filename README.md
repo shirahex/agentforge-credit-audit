@@ -121,6 +121,7 @@ committed): `audit.sqlite` (runs, events, case store), `checkpoints.sqlite`
 
 ```
 python eval/run_eval.py        # result tables: full system, ablations, baselines (about one minute)
+python eval/figures.py         # figures of the result tables
 python eval/demo_reports.py    # PDF audit report of the six demo files, in docs/sample-reports/
 ```
 
@@ -168,6 +169,7 @@ python ml/report.py            # figures, model card, audit statistics
 - `docs/llm-limits.md`: provider limits and the interval between LLM calls
 - `docs/sample-reports/`: PDF audit report of each demo file
 - `eval/results/RESULTS.md`: evaluation tables
+- `docs/result-analysis.md`: reading of the tables, figures and limits
 - `ml/reports/MODEL_CARD.md`: model, policy and audit results
 - `ml/notebooks/01_eda.ipynb`: exploratory analysis
 - `docs/screenshots/`: interface screens
