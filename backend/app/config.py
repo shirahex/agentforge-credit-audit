@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -30,3 +31,25 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "")
 LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "30"))
 LLM_MIN_INTERVAL_SECONDS = float(os.getenv("LLM_MIN_INTERVAL_SECONDS", "0"))
+# Reasoning models spend part of max_tokens on their reasoning: this factor enlarges every answer budget.
+LLM_MAX_TOKENS_SCALE = float(os.getenv("LLM_MAX_TOKENS_SCALE", "1"))
+# Extra fields merged into every request body, as JSON, for example {"reasoning_effort": "low"}.
+LLM_EXTRA_BODY = json.loads(os.getenv("LLM_EXTRA_BODY") or "{}")
+
+# --- Fairness audit (task I1)
+# Age bands used for the group metrics: upper bounds, inclusive. The last band is open.
+AGE_BANDS = ((25, "18-25"), (40, "26-40"), (200, "41+"))
+# A gap in approval rate above this value between two groups is reported as a disparity.
+FAIRNESS_TOLERANCE = float(os.getenv("FAIRNESS_TOLERANCE", "0.10"))
+# Groups with fewer test files than this are shown but never trigger an alert.
+FAIRNESS_MIN_GROUP = int(os.getenv("FAIRNESS_MIN_GROUP", "20"))
+# Plausibility of a counterfactual: mean Gower distance to its k nearest training files, compared
+# with the same distance measured for every training file. Beyond this quantile it is an outlier.
+PLAUSIBILITY_K = int(os.getenv("PLAUSIBILITY_K", "5"))
+PLAUSIBILITY_QUANTILE = float(os.getenv("PLAUSIBILITY_QUANTILE", "0.95"))
+# An applicant who is already unusual is not blamed for it: a counterfactual beyond the limit is only
+# rejected when the changes themselves moved the file away by more than this (about half an attribute).
+PLAUSIBILITY_SLACK = float(os.getenv("PLAUSIBILITY_SLACK", "0.03"))
+
+# --- Durable state (tasks I3 and I4): checkpoints, runs, case store, traces and PDF reports.
+DATA_DIR = Path(os.getenv("DATA_DIR") or Path(__file__).resolve().parents[1] / "data")

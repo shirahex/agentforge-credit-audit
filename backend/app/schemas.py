@@ -76,6 +76,18 @@ class FeatureChange(BaseModel):
     to_label: str = ""
 
 
+class Plausibility(BaseModel):
+    """How close a modified file stays to real past applicants (task I1)."""
+
+    score: float = Field(ge=0, le=1)  # share of training files that are at least as isolated; 1 is typical
+    knn_distance: float  # mean Gower distance to the k nearest training files
+    limit: float  # distance beyond which a file is an outlier of the training data
+    applicant_distance: float  # same distance for the unmodified file
+    plausible: bool
+    neighbours_repaid: float  # share of the k nearest past applicants who repaid
+    k: int = 5
+
+
 class Counterfactual(BaseModel):
     changes: list[FeatureChange]
     new_probability: float
@@ -87,6 +99,7 @@ class Counterfactual(BaseModel):
     cost: float = 0.0  # weighted size of the change, lower is easier
     source: Literal["exhaustive", "dice"] = "exhaustive"
     statement: str = ""  # plain-language wording built from the labels
+    plausibility: Plausibility | None = None  # set by the Vérificateur-Équité
 
 
 class SimilarCase(BaseModel):
@@ -97,12 +110,30 @@ class SimilarCase(BaseModel):
     duration_months: int
 
 
+class PastAudit(BaseModel):
+    """A finished audit retrieved from the case store because its file resembles the current one."""
+
+    run_id: str
+    applicant_id: str
+    similarity: float = Field(ge=0, le=1)  # 1 minus the Gower distance on non-protected attributes
+    decision: Decision  # outcome of the agents
+    final_outcome: Decision  # outcome after human review, when there was one
+    default_probability: float
+    escalated: bool = False
+    reviewed: bool = False
+    attempts: int = 0
+    paths: int = 0
+    best_path: str = ""  # cheapest verified way to approval found at the time
+    closed_at: str = ""
+
+
 class AnalystReport(BaseModel):
     warnings: list[str] = []
     peer_default_rate: float | None = None  # observed default rate among similar past applicants
     peer_count: int = 0
     peers: list[SimilarCase] = []
     note: str = ""
+    precedents: list[PastAudit] = []  # similar files already audited (case store)
 
 
 class ToolCall(BaseModel):
@@ -119,6 +150,11 @@ class FairnessVerdict(BaseModel):
     reasons: list[str] = []
     metrics: dict[str, float] = {}
     flip_test_passed: bool = True
+    verdict: str = ""  # the auditor's wording of its conclusion (LLM text or rule-based)
+    notes: list[str] = []  # group-level observations: recorded, never sent back as objections
+    group_context: list[dict[str, Any]] = []  # where the applicant's own groups stand
+    candidates_checked: int = 0
+    candidates_kept: int = 0
 
 
 class AuditDecision(BaseModel):
@@ -132,6 +168,16 @@ class AuditDecision(BaseModel):
     fairness: FairnessVerdict | None = None
     attempts: int = 0
     report_path: str | None = None
+    report_id: str | None = None
+    # Applicant letter, in French. A draft until the audit is closed (a reviewer may change the outcome).
+    letter: str = ""
+    letter_status: Literal["draft", "final"] = "final"
+    # Human review of an escalated audit
+    review: dict[str, Any] | None = None
+    final_outcome: Decision | None = None  # decision after review; equal to `decision` when not escalated
+    # Memory: similar files audited before, and a conflict with one of them if any
+    precedents: list[PastAudit] = []
+    precedent_conflict: str | None = None
 
 
 class AgentEvent(BaseModel):

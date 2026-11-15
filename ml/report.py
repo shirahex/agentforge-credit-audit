@@ -31,6 +31,7 @@ from app.domain.features import BY_NAME  # noqa: E402
 from app.domain.model import MODEL_DIR, get_model  # noqa: E402
 from app.graph.build import graph  # noqa: E402
 from app.schemas import LoanApplication  # noqa: E402
+from app.tools.fairness import group_fairness_comparison  # noqa: E402
 
 REPORTS = ROOT / "ml" / "reports"
 INK, ACCENT, MUTED = "#1d1d1f", "#0071e3", "#8e8e93"
@@ -109,13 +110,14 @@ def main() -> None:
     # --- what the audit delivers, for both variants
     audit = {v: audit_test_set(v, test) for v in ("full", "unaware")}
     config.MODEL_VARIANT = "full"
+    fairness = group_fairness_comparison()  # Fairlearn group metrics of both variants (task I1)
 
     summary = {
         "roc": downsample(fpr, tpr), "roc_baseline": downsample(bfpr, btpr),
         "calibration": calibration, "histogram": hist,
         "cost_curve": [[g, round(v, 4)] for g, v in zip(c["grid"], c["cost"])],
         "ks_curve": [[g, round(v, 4)] for g, v in zip(c["grid"], c["youden"])],
-        "shap_importance": shap_importance, "audit": audit,
+        "shap_importance": shap_importance, "audit": audit, "fairness": fairness,
     }
     (REPORTS / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
 
@@ -204,10 +206,31 @@ def main() -> None:
         f"| Files whose decision changes with a protected attribute | {a['full']['flip_test_failure_rate']:.1%} | {a['unaware']['flip_test_failure_rate']:.1%} |",
         f"| Files sent to human review | {a['full'].get('escalated', 0)} | {a['unaware'].get('escalated', 0)} |",
         f"| Time per audit | {a['full']['ms_per_audit']:.0f} ms | {a['unaware']['ms_per_audit']:.0f} ms |", "",
+        "A way to approval is counted only when it passes every check of the Vérificateur-Équité: recourse rules,",
+        "re-scoring with a safety margin, and realism against past applicants (plausibility).", "",
         "The full model uses sex, age and foreign-worker status, as a legacy scorecard would. The audit detects the",
         "files where one of these attributes decides the outcome. The unaware variant removes them at a negligible",
-        f"cost in accuracy (test AUC {metas['unaware']['test']['auc']:.3f}); group-level disparities through correlated attributes remain",
-        "to be measured with Fairlearn (task I1).", "",
+        f"cost in accuracy (test AUC {metas['unaware']['test']['auc']:.3f}).", "",
+        "## Fairness across groups (test set, Fairlearn)", "",
+        "Approval rate of each group, demographic parity difference (largest gap in approval rate between two groups),",
+        "demographic parity ratio (lowest rate divided by the highest; the four-fifths rule asks for at least 0.80) and",
+        "equalized odds difference (largest gap between groups in the approval rate of good payers or of bad payers).",
+        "Intervals are 95% bootstrap intervals on the 200 test files.", "",
+        "| Attribute | Model | Approval rate by group | DP difference | DP ratio | EO difference |", "|---|---|---|---|---|---|",
+    ]
+    for attribute in fairness["full"]["attributes"]:
+        for variant, name in (("full", "Full (audited)"), ("unaware", "Unaware")):
+            r = fairness[variant]["attributes"][attribute]
+            groups = ", ".join(f"{g.replace('_', ' ')} {v['selection_rate']:.0%} (n={v['n']})" for g, v in r["groups"].items())
+            dp, eo = r["ci95"]["demographic_parity_difference"], r["ci95"]["equalized_odds_difference"]
+            lines.append(f"| {r['label']} | {name} | {groups} | {r['demographic_parity_difference']:.3f} ({dp[0]:.2f} to {dp[1]:.2f}) | "
+                         f"{r['demographic_parity_ratio']:.2f} | {r['equalized_odds_difference']:.3f} ({eo[0]:.2f} to {eo[1]:.2f}) |")
+    lines += [
+        "", *[f"- {line}" for line in fairness["reading"]], "",
+        f"A gap above {fairness['tolerance']:.0%} between groups of at least {fairness['min_group']} files is reported as a disparity.",
+        "The unaware model never sees the protected attributes: what it still shows reaches the decision through",
+        "correlated attributes. These metrics describe the model on a small test set; the audit of one file relies on",
+        "the individual flip test, and records the group metrics for the reviewer.", "",
         "## Limits", "",
         "- 1,000 files from one German bank in the 1990s, amounts in Deutsche Mark: a benchmark, not a production portfolio.",
         "- Only accepted applicants are in the data (no reject inference).",
