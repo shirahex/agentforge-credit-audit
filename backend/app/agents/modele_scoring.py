@@ -5,6 +5,8 @@ result. The LLM may only cite factors returned by SHAP and numbers returned
 by the tools: an explanation that cites anything else is rejected, retried
 once, then replaced by the rule-based wording.
 """
+import re
+
 from pydantic import BaseModel, Field
 
 from app.agents.base import Recorder, guarded_answer
@@ -13,17 +15,24 @@ from app.schemas import ScoreResult
 from app.tools.scoring import explain_applicant, score_applicant
 
 SYSTEM = """You are the scoring analyst of a credit audit team. You receive the output of a credit scoring
-model for one applicant: the default probability, the refusal threshold, the decision, and the main
-factors with their signed contribution (positive raises the default risk, negative lowers it).
-Explain the decision in at most 70 words of plain English for a credit officer. Cite only factors from
-the list, with their direction. Use only numbers present in the facts. Do not suggest changes and do not
-mention sex, age or nationality unless they are in the factor list.
-Answer with a JSON object: {"explanation": "...", "cited_features": ["feature_name", ...]}"""
+model for one applicant: the default probability, the refusal threshold, the decision, and two lists of
+factors computed by SHAP: "raises_risk" (factors that push the default risk up) and "lowers_risk" (factors
+that pull it down), each ordered from strongest to weakest.
+Explain the decision to a credit officer in two or three sentences, at most 60 words, plain English.
+Name the two or three strongest factors of "raises_risk" as raising the risk, and one or two of
+"lowers_risk" as lowering it. Never swap the two lists: a factor's direction is given, do not reason about
+it. In the explanation, refer to each factor by its label and value in plain words (for example
+"an overdrawn checking account"), never by its feature name. Use only numbers present in the facts. Do not
+suggest changes.
+Answer with a JSON object:
+{"explanation": "...", "raises_risk": ["feature_name", ...], "lowers_risk": ["feature_name", ...]}
+where the two lists hold the feature names you mentioned, each on the side given in the facts."""
 
 
 class Explanation(BaseModel):
-    explanation: str = Field(min_length=30, max_length=800)
-    cited_features: list[str] = Field(min_length=1)
+    explanation: str = Field(min_length=30, max_length=600)
+    raises_risk: list[str] = []
+    lowers_risk: list[str] = []
 
 
 def rule_based(score: ScoreResult) -> str:
@@ -53,19 +62,45 @@ def run(state: AuditState) -> AuditState:
         summary=lambda r: "top factors: " + ", ".join(f"{f.feature} {f.contribution:+.2f}" for f in r[0][:4]))
     score = score.model_copy(update={"top_factors": factors, "base_probability": base})
 
-    allowed = {f.feature for f in score.top_factors}
+    up = {f.feature for f in score.top_factors if f.contribution > 0}
+    down = {f.feature for f in score.top_factors if f.contribution < 0}
+
+    def side(positive: bool) -> list[dict]:
+        return [{"feature": f.feature, "label": f.label, "value": f.value_label}
+                for f in score.top_factors if (f.contribution > 0) == positive]
+
     facts = {
         "default_probability_percent": round(score.default_probability * 100),
         "refusal_threshold_percent": round(score.threshold * 100),
         "decision": score.decision,
-        "factors": [{"feature": f.feature, "label": f.label, "value": f.value_label,
-                     "effect": "raises risk" if f.contribution > 0 else "lowers risk",
-                     "contribution": round(f.contribution, 2)} for f in score.top_factors],
+        "raises_risk": side(True),
+        "lowers_risk": side(False),
     }
 
     def check(a: Explanation) -> str | None:
-        unknown = [c for c in a.cited_features if c not in allowed]
-        return f"cited features not in the factor list: {', '.join(unknown)}" if unknown else None
+        if not a.raises_risk and not a.lowers_risk:
+            return "no factor is cited"
+        wrong_up = [c for c in a.raises_risk if c not in up]
+        wrong_down = [c for c in a.lowers_risk if c not in down]
+        if wrong_up:
+            return f"these are not in the raises_risk facts: {', '.join(wrong_up)}"
+        if wrong_down:
+            return f"these are not in the lowers_risk facts: {', '.join(wrong_down)}"
+        text = a.explanation.lower()
+        said = set(re.findall(r"[a-z0-9]+", text))  # whole words: "used" must not match "refused"
+        named = 0
+        for f in score.top_factors:
+            if f.feature in a.raises_risk + a.lowers_risk:
+                words = [w for w in f"{f.label} {f.value_label}".lower().replace("(", " ").replace(")", " ").split()
+                         if len(w) > 3 and w not in ("than", "more", "less", "with", "this", "bank", "years")]
+                named += any(w.strip(",.;:") in said for w in words)
+        if named < min(2, len(score.top_factors)):
+            return "the explanation does not name its factors; name at least two of them by label and value"
+        if any(f.feature in text for f in score.top_factors if "_" in f.feature):
+            return "the explanation uses feature names with underscores; use the labels in plain words"
+        if len(a.explanation.split()) > 80:
+            return "the explanation is longer than 60 words"
+        return None
 
     answer = guarded_answer(SYSTEM, facts, Explanation, check=check, text_fields=("explanation",))
     explanation, mode = (answer.explanation, "llm") if answer else (rule_based(score), "rules")

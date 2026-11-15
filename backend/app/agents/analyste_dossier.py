@@ -13,10 +13,13 @@ from app.schemas import AnalystReport
 from app.tools.analysis import similar_cases, validate_application
 
 SYSTEM = """You are the file analyst of a credit audit team. You receive facts produced by tools about one
-loan application: consistency warnings and the outcome of the most similar past applicants.
-Write a short analyst note (at most 55 words, plain English, no bullet points) that states whether the
-file is consistent and what the similar past files suggest. Use only the facts given. Never give a
-credit decision or a probability of your own. Never mention sex, age or nationality.
+loan application: the list of consistency warnings (it may be empty) and how many of the most similar past
+applicants defaulted.
+Write an analyst note of two sentences, at most 40 words, in plain English.
+Sentence 1: say whether the file is consistent; if there are warnings, say what they are about.
+Sentence 2: report how many of the similar past applicants defaulted, as a plain count.
+Report facts only. Do not judge the count as high or low. Do not give advice, a recommendation, a decision
+or a probability. Do not mention sex, age or nationality. Use only numbers present in the facts.
 Answer with a JSON object: {"note": "..."}"""
 
 
@@ -33,9 +36,15 @@ def run(state: AuditState) -> AuditState:
     rate, peers = rec.call("similar_cases", similar_cases, app, 15, show={"k": 15},
                            summary=lambda r: f"{round(r[0] * 15)} of 15 similar past applicants defaulted")
     defaults = round(rate * 15)
-    facts = {"warnings": warnings, "similar_past_applicants": 15, "of_which_defaulted": defaults,
-             "credit_amount": app.credit_amount, "duration_months": app.duration_months}
-    answer = guarded_answer(SYSTEM, facts, Note, text_fields=("note",))
+    facts = {"number_of_warnings": len(warnings), "warnings": warnings,
+             "similar_past_applicants": 15, "of_which_defaulted": defaults}
+    banned = ("caution", "recommend", "should", "high default", "low default", "investigat")
+
+    def check(a: Note) -> str | None:
+        used = [w for w in banned if w in a.note.lower()]
+        return f"the note gives advice or a judgement ({', '.join(used)}); report facts only" if used else None
+
+    answer = guarded_answer(SYSTEM, facts, Note, check=check, text_fields=("note",))
     if answer:
         note, mode = answer.note, "llm"
     else:

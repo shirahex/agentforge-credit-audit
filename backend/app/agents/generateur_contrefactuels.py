@@ -17,21 +17,39 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app import config
 from app.agents.base import Recorder, guarded_answer, plural
 from app.domain.features import ACTIONABLE, BY_NAME
 from app.graph.state import AuditState
 from app.tools.counterfactuals import REQUEST_SCOPE, closest_miss, generate_counterfactuals, permitted_moves
 
-SYSTEM = """You are the recourse planner of a credit audit team. A loan was refused. Your job is to choose
-where to search for the smallest realistic changes that would turn the refusal into an approval.
-You receive: the main risk factors (SHAP), the attributes the applicant can act on with their permitted
-values, the attempt number, the plans already tried and the objections of the fairness auditor.
-Rules: choose only attributes from "actionable". Prefer loan terms (scope "request") on the first attempt
-because the applicant can change them immediately; add the financial situation (scope "situation") when
-loan terms were not enough. Never repeat a plan that already failed. max_changes is 1, 2 or 3. Set widen
-to true only from the second attempt, to allow larger reductions.
+SYSTEM = """You are the recourse planner of a credit audit team. A loan was refused. You choose where a
+search tool will look for the smallest realistic changes that turn the refusal into an approval. You do not
+compute anything: you only choose the attributes the tool may change.
+You receive: the main risk factors, the list "actionable" (attributes the applicant can act on, what acting
+on each one means, its scope and its permitted values), the attempt number, "untried" (actionable attributes
+no earlier plan used) and the auditor's objections to the previous attempt.
+Rules:
+1. Choose features only from "actionable".
+2. Attempt 1: choose every attribute of scope "request" (the applicant can change them today).
+3. Later attempts: the previous plan failed, so the new plan must add attributes from "untried", normally
+   all of them. Read the objections: if the best reachable risk stayed above the threshold, loan terms are
+   not enough and the financial situation (scope "situation") must join the search.
+4. Give priority to attributes that appear in the risk factors as raising the risk.
+5. max_changes is 1, 2 or 3: use 2 on attempt 1 and 3 afterwards. Set widen to true only on attempt 3.
+6. Attempt 3 is the last one: choose every attribute of "actionable", with max_changes 3 and widen true.
 Answer with a JSON object:
-{"features": ["..."], "max_changes": 2, "widen": false, "rationale": "one or two sentences"}"""
+{"features": ["..."], "max_changes": 2, "widen": false, "rationale": "one or two sentences naming the attributes and why"}"""
+
+MEANING = {
+    "credit_amount": "request a smaller amount",
+    "duration_months": "repay over fewer months",
+    "other_debtors": "add a guarantor",
+    "checking_status": "improve the checking account balance",
+    "savings": "build up savings",
+    "existing_credits": "close a running credit at this bank",
+    "other_installment_plans": "settle instalment plans held elsewhere",
+}
 
 
 class Plan(BaseModel):
@@ -73,12 +91,15 @@ def run(state: AuditState) -> AuditState:
                 "reasoning": "Every actionable attribute is already at its best permitted value.",
                 "mode": "rules", "tool_calls": rec.calls, "status": "completed"}
 
+    used = {f for k in tried for f in k[0]}
+    untried = [f for f in available if f not in used]
     facts = {
         "attempt": attempt,
-        "risk_factors": [{"feature": f.feature, "effect": "raises risk" if f.contribution > 0 else "lowers risk",
-                          "contribution": round(f.contribution, 2)} for f in score.top_factors],
-        "actionable": [{"feature": n, "scope": BY_NAME[n].recourse, "current": getattr(app, n),
-                        "permitted_values": v} for n, v in moves.items()],
+        "risk_factors": [{"feature": f.feature, "effect": "raises risk" if f.contribution > 0 else "lowers risk"}
+                         for f in score.top_factors],
+        "actionable": [{"feature": n, "meaning": MEANING.get(n, ""), "scope": BY_NAME[n].recourse,
+                        "current": getattr(app, n), "permitted_values": v} for n, v in moves.items()],
+        "untried": untried,
         "plans_already_tried": [{"features": list(k[0]), "max_changes": k[1], "widen": k[2]} for k in tried],
         "auditor_objections": feedback,
     }
@@ -87,10 +108,21 @@ def run(state: AuditState) -> AuditState:
         unknown = [f for f in p.features if f not in available]
         if unknown:
             return f"not actionable for this applicant: {', '.join(unknown)}"
-        if p.key() in tried:
+        if p.widen and attempt < 3:
+            return "widen is only allowed on attempt 3"
+        if attempt >= config.MAX_CF_ATTEMPTS:
+            missing = [f for f in available if f not in p.features]
+            if missing or not p.widen or p.max_changes != 3:
+                return ("the last attempt must search everything: every actionable attribute, max_changes 3, "
+                        f"widen true{'; missing: ' + ', '.join(missing) if missing else ''}")
+        elif attempt == 1:
+            missing = [f for f in available if f in REQUEST_SCOPE and f not in p.features]
+            if missing:
+                return f"attempt 1 must include every request attribute; missing: {', '.join(missing)}"
+        elif untried and not any(f in untried for f in p.features):
+            return f"the plan repeats attributes that already failed; add untried attributes: {', '.join(untried)}"
+        elif not untried and not p.widen and p.key() in tried:
             return "this plan was already tried and failed"
-        if p.widen and attempt == 1:
-            return "widen is not allowed on the first attempt"
         return None
 
     plan = guarded_answer(SYSTEM, facts, Plan, check=check)
