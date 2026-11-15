@@ -1419,33 +1419,302 @@
   "full": {
    "files": 200,
    "refused": 99,
-   "solved_attempt_2": 35,
+   "solved_attempt_2": 34,
    "approved": 101,
-   "escalated": 39,
-   "no_path": 13,
+   "escalated": 48,
+   "no_path": 22,
    "flip_test_failed": 22,
-   "solved_attempt_1": 42,
-   "solved_attempt_3": 9,
-   "recourse_rate": 0.8687,
-   "immediate_recourse_rate": 0.4444,
-   "mean_paths": 1.86,
+   "solved_attempt_1": 39,
+   "solved_attempt_3": 4,
+   "recourse_rate": 0.7778,
+   "immediate_recourse_rate": 0.404,
+   "mean_paths": 1.7,
    "flip_test_failure_rate": 0.11,
-   "ms_per_audit": 102.9
+   "ms_per_audit": 103.1
   },
   "unaware": {
    "files": 200,
    "refused": 94,
-   "solved_attempt_1": 39,
+   "solved_attempt_1": 38,
    "approved": 106,
-   "escalated": 28,
-   "no_path": 16,
-   "solved_attempt_2": 30,
-   "solved_attempt_3": 9,
-   "recourse_rate": 0.8298,
-   "immediate_recourse_rate": 0.4574,
-   "mean_paths": 1.83,
+   "escalated": 34,
+   "no_path": 22,
+   "solved_attempt_2": 27,
+   "solved_attempt_3": 7,
+   "recourse_rate": 0.766,
+   "immediate_recourse_rate": 0.4468,
+   "mean_paths": 1.75,
    "flip_test_failure_rate": 0.0,
-   "ms_per_audit": 97.6
+   "ms_per_audit": 96.6
+  }
+ },
+ "fairness": {
+  "full": {
+   "variant": "full",
+   "model_version": "german-credit-full-2026-11-15",
+   "threshold": 0.26,
+   "files": 200,
+   "approval_rate": 0.505,
+   "attributes": {
+    "sex": {
+     "groups": {
+      "female": {
+       "n": 61,
+       "selection_rate": 0.4426,
+       "true_positive_rate": 0.5854,
+       "false_positive_rate": 0.15,
+       "small_sample": false
+      },
+      "male": {
+       "n": 139,
+       "selection_rate": 0.5324,
+       "true_positive_rate": 0.6667,
+       "false_positive_rate": 0.2,
+       "small_sample": false
+      }
+     },
+     "demographic_parity_difference": 0.0898,
+     "demographic_parity_ratio": 0.8314,
+     "equalized_odds_difference": 0.0813,
+     "least_approved": "female",
+     "most_approved": "male",
+     "label": "Sex",
+     "ci95": {
+      "demographic_parity_difference": [
+       0.0065,
+       0.2444
+      ],
+      "equalized_odds_difference": [
+       0.0335,
+       0.2925
+      ]
+     },
+     "reliable_gap": 0.0898,
+     "alert": false,
+     "four_fifths_ok": true
+    },
+    "age_group": {
+     "groups": {
+      "18-25": {
+       "n": 44,
+       "selection_rate": 0.3636,
+       "true_positive_rate": 0.5,
+       "false_positive_rate": 0.2,
+       "small_sample": false
+      },
+      "26-40": {
+       "n": 92,
+       "selection_rate": 0.5435,
+       "true_positive_rate": 0.7231,
+       "false_positive_rate": 0.1111,
+       "small_sample": false
+      },
+      "41+": {
+       "n": 64,
+       "selection_rate": 0.5469,
+       "true_positive_rate": 0.6078,
+       "false_positive_rate": 0.3077,
+       "small_sample": false
+      }
+     },
+     "demographic_parity_difference": 0.1832,
+     "demographic_parity_ratio": 0.6649,
+     "equalized_odds_difference": 0.2231,
+     "least_approved": "18-25",
+     "most_approved": "41+",
+     "label": "Age band",
+     "ci95": {
+      "demographic_parity_difference": [
+       0.0501,
+       0.3882
+      ],
+      "equalized_odds_difference": [
+       0.1404,
+       0.5133
+      ]
+     },
+     "reliable_gap": 0.1833,
+     "alert": true,
+     "four_fifths_ok": false
+    },
+    "foreign_worker": {
+     "groups": {
+      "foreign": {
+       "n": 194,
+       "selection_rate": 0.4948,
+       "true_positive_rate": 0.6296,
+       "false_positive_rate": 0.1864,
+       "small_sample": false
+      },
+      "non_foreign": {
+       "n": 6,
+       "selection_rate": 0.8333,
+       "true_positive_rate": 1.0,
+       "false_positive_rate": 0.0,
+       "small_sample": true
+      }
+     },
+     "demographic_parity_difference": 0.3385,
+     "demographic_parity_ratio": 0.5938,
+     "equalized_odds_difference": 0.3704,
+     "least_approved": "foreign",
+     "most_approved": "non_foreign",
+     "label": "Foreign worker",
+     "ci95": {
+      "demographic_parity_difference": [
+       0.0237,
+       0.5596
+      ],
+      "equalized_odds_difference": [
+       0.276,
+       0.4511
+      ]
+     },
+     "reliable_gap": null,
+     "alert": false,
+     "four_fifths_ok": true
+    }
+   }
+  },
+  "unaware": {
+   "variant": "unaware",
+   "model_version": "german-credit-unaware-2026-11-15",
+   "threshold": 0.27,
+   "files": 200,
+   "approval_rate": 0.53,
+   "attributes": {
+    "sex": {
+     "groups": {
+      "female": {
+       "n": 61,
+       "selection_rate": 0.5246,
+       "true_positive_rate": 0.6585,
+       "false_positive_rate": 0.25,
+       "small_sample": false
+      },
+      "male": {
+       "n": 139,
+       "selection_rate": 0.5324,
+       "true_positive_rate": 0.6768,
+       "false_positive_rate": 0.175,
+       "small_sample": false
+      }
+     },
+     "demographic_parity_difference": 0.0078,
+     "demographic_parity_ratio": 0.9854,
+     "equalized_odds_difference": 0.075,
+     "least_approved": "female",
+     "most_approved": "male",
+     "label": "Sex",
+     "ci95": {
+      "demographic_parity_difference": [
+       0.0028,
+       0.178
+      ],
+      "equalized_odds_difference": [
+       0.0295,
+       0.3321
+      ]
+     },
+     "reliable_gap": 0.0078,
+     "alert": false,
+     "four_fifths_ok": true
+    },
+    "age_group": {
+     "groups": {
+      "18-25": {
+       "n": 44,
+       "selection_rate": 0.4545,
+       "true_positive_rate": 0.625,
+       "false_positive_rate": 0.25,
+       "small_sample": false
+      },
+      "26-40": {
+       "n": 92,
+       "selection_rate": 0.5435,
+       "true_positive_rate": 0.7231,
+       "false_positive_rate": 0.1111,
+       "small_sample": false
+      },
+      "41+": {
+       "n": 64,
+       "selection_rate": 0.5625,
+       "true_positive_rate": 0.6275,
+       "false_positive_rate": 0.3077,
+       "small_sample": false
+      }
+     },
+     "demographic_parity_difference": 0.108,
+     "demographic_parity_ratio": 0.8081,
+     "equalized_odds_difference": 0.1966,
+     "least_approved": "18-25",
+     "most_approved": "41+",
+     "label": "Age band",
+     "ci95": {
+      "demographic_parity_difference": [
+       0.0277,
+       0.321
+      ],
+      "equalized_odds_difference": [
+       0.1011,
+       0.5185
+      ]
+     },
+     "reliable_gap": 0.108,
+     "alert": true,
+     "four_fifths_ok": true
+    },
+    "foreign_worker": {
+     "groups": {
+      "foreign": {
+       "n": 194,
+       "selection_rate": 0.5206,
+       "true_positive_rate": 0.6593,
+       "false_positive_rate": 0.2034,
+       "small_sample": false
+      },
+      "non_foreign": {
+       "n": 6,
+       "selection_rate": 0.8333,
+       "true_positive_rate": 1.0,
+       "false_positive_rate": 0.0,
+       "small_sample": true
+      }
+     },
+     "demographic_parity_difference": 0.3127,
+     "demographic_parity_ratio": 0.6247,
+     "equalized_odds_difference": 0.3407,
+     "least_approved": "foreign",
+     "most_approved": "non_foreign",
+     "label": "Foreign worker",
+     "ci95": {
+      "demographic_parity_difference": [
+       0.0203,
+       0.5358
+      ],
+      "equalized_odds_difference": [
+       0.2547,
+       0.4188
+      ]
+     },
+     "reliable_gap": null,
+     "alert": false,
+     "four_fifths_ok": true
+    }
+   }
+  },
+  "tolerance": 0.1,
+  "min_group": 20,
+  "reading": [
+   "Sex: approval gap of 9 points in the audited model (female least approved); without protected attributes it disappears (1 point).",
+   "Age band: approval gap of 18 points in the audited model (18-25 least approved); without protected attributes it is reduced but remains through correlated attributes (11 points).",
+   "Foreign worker: one group has fewer than 20 test files, so no conclusion is drawn."
+  ],
+  "definitions": {
+   "selection_rate": "share of the group's files that are approved",
+   "demographic_parity_difference": "largest gap in approval rate between two groups",
+   "demographic_parity_ratio": "lowest approval rate divided by the highest (four-fifths rule: at least 0.8)",
+   "equalized_odds_difference": "largest gap between groups in the approval rate of good payers or of bad payers, whichever is larger"
   }
  }
 }

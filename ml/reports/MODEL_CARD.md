@@ -45,17 +45,44 @@ The other policy is available with `REFUSAL_THRESHOLD`.
 | | Full model (audited) | Unaware model |
 |---|---|---|
 | Refusals | 99 | 94 |
-| Refusals with a verified path to approval | 87% | 83% |
-| of which solved at attempt 1 / 2 / 3 | 42 / 35 / 9 | 39 / 30 / 9 |
-| Refusals with an immediate path (loan terms only) | 44% | 46% |
+| Refusals with a verified path to approval | 78% | 77% |
+| of which solved at attempt 1 / 2 / 3 | 39 / 34 / 4 | 38 / 27 / 7 |
+| Refusals with an immediate path (loan terms only) | 40% | 45% |
 | Files whose decision changes with a protected attribute | 11.0% | 0.0% |
-| Files sent to human review | 39 | 28 |
-| Time per audit | 103 ms | 98 ms |
+| Files sent to human review | 48 | 34 |
+| Time per audit | 103 ms | 97 ms |
+
+A way to approval is counted only when it passes every check of the Vérificateur-Équité: recourse rules,
+re-scoring with a safety margin, and realism against past applicants (plausibility).
 
 The full model uses sex, age and foreign-worker status, as a legacy scorecard would. The audit detects the
 files where one of these attributes decides the outcome. The unaware variant removes them at a negligible
-cost in accuracy (test AUC 0.810); group-level disparities through correlated attributes remain
-to be measured with Fairlearn (task I1).
+cost in accuracy (test AUC 0.810).
+
+## Fairness across groups (test set, Fairlearn)
+
+Approval rate of each group, demographic parity difference (largest gap in approval rate between two groups),
+demographic parity ratio (lowest rate divided by the highest; the four-fifths rule asks for at least 0.80) and
+equalized odds difference (largest gap between groups in the approval rate of good payers or of bad payers).
+Intervals are 95% bootstrap intervals on the 200 test files.
+
+| Attribute | Model | Approval rate by group | DP difference | DP ratio | EO difference |
+|---|---|---|---|---|---|
+| Sex | Full (audited) | female 44% (n=61), male 53% (n=139) | 0.090 (0.01 to 0.24) | 0.83 | 0.081 (0.03 to 0.29) |
+| Sex | Unaware | female 52% (n=61), male 53% (n=139) | 0.008 (0.00 to 0.18) | 0.99 | 0.075 (0.03 to 0.33) |
+| Age band | Full (audited) | 18-25 36% (n=44), 26-40 54% (n=92), 41+ 55% (n=64) | 0.183 (0.05 to 0.39) | 0.66 | 0.223 (0.14 to 0.51) |
+| Age band | Unaware | 18-25 45% (n=44), 26-40 54% (n=92), 41+ 56% (n=64) | 0.108 (0.03 to 0.32) | 0.81 | 0.197 (0.10 to 0.52) |
+| Foreign worker | Full (audited) | foreign 49% (n=194), non foreign 83% (n=6) | 0.339 (0.02 to 0.56) | 0.59 | 0.370 (0.28 to 0.45) |
+| Foreign worker | Unaware | foreign 52% (n=194), non foreign 83% (n=6) | 0.313 (0.02 to 0.54) | 0.62 | 0.341 (0.25 to 0.42) |
+
+- Sex: approval gap of 9 points in the audited model (female least approved); without protected attributes it disappears (1 point).
+- Age band: approval gap of 18 points in the audited model (18-25 least approved); without protected attributes it is reduced but remains through correlated attributes (11 points).
+- Foreign worker: one group has fewer than 20 test files, so no conclusion is drawn.
+
+A gap above 10% between groups of at least 20 files is reported as a disparity.
+The unaware model never sees the protected attributes: what it still shows reaches the decision through
+correlated attributes. These metrics describe the model on a small test set; the audit of one file relies on
+the individual flip test, and records the group metrics for the reviewer.
 
 ## Limits
 
