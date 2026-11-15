@@ -5,6 +5,7 @@ GET  /api/schema                applicant attributes (labels, options, ranges) f
 GET  /api/samples               demo applicant files taken from the test set
 GET  /api/model                 model card data: metrics, policies, curves, importance, group fairness
 GET  /api/fairness              Fairlearn group metrics of both model variants
+POST /api/score                 score a file without running the agents (what-if simulator, no LLM)
 POST /api/audits                start an audit, returns {run_id}
 GET  /api/audits                history of audits, kept across restarts
 GET  /api/audits/{id}           full record: application, events, decision, review
@@ -24,11 +25,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -41,7 +44,7 @@ from app.graph.runner import service
 from app.llm import client as llm
 from app.memory import case_store, run_store
 from app.samples import load_samples
-from app.schemas import AuditDecision, LoanApplication
+from app.schemas import AuditDecision, LoanApplication, ScoreResult
 from app.tools import scoring
 from app.tools.fairness import group_fairness_comparison
 from app.tools.report import render_report
@@ -58,7 +61,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="AgentForge Credit Audit", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", *config.EXTRA_ORIGINS],
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],
@@ -138,8 +141,34 @@ def model_card() -> dict:
     }
 
 
+@app.post("/api/score")
+def score(application: LoanApplication) -> ScoreResult:
+    return scoring.score_applicant(application)
+
+
+_started: dict[str, deque] = defaultdict(deque)
+
+
+def _allow(client: str) -> bool:
+    """Public demo: at most DEMO_AUDITS_PER_HOUR audits per visitor, to protect the free LLM quota."""
+    limit = config.DEMO_AUDITS_PER_HOUR
+    if limit <= 0:
+        return True
+    now, recent = time.time(), _started[client]
+    while recent and now - recent[0] > 3600:
+        recent.popleft()
+    if len(recent) >= limit:
+        return False
+    recent.append(now)
+    return True
+
+
 @app.post("/api/audits")
-def start_audit(application: LoanApplication) -> dict:
+def start_audit(application: LoanApplication, request: Request) -> dict:
+    client = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0].strip()
+    if not _allow(client):
+        raise HTTPException(429, f"demo limit reached: {config.DEMO_AUDITS_PER_HOUR} audits per hour; "
+                                 "open the past audits or try again later")
     return {"run_id": service().start(application)}
 
 
@@ -223,3 +252,16 @@ def audit_trace(run_id: str) -> FileResponse:
     if not file.exists():
         raise HTTPException(404, "no trace for this audit")
     return FileResponse(file, media_type="application/x-ndjson", filename=f"trace-{run_id}.jsonl")
+
+
+# Built interface (frontend/dist), served by the API in production so the whole app is one service.
+_DIST = ROOT / "frontend" / "dist"
+if _DIST.exists():
+    @app.get("/{path:path}", include_in_schema=False)
+    def interface(path: str) -> FileResponse:
+        if path.startswith("api/"):
+            raise HTTPException(404, "unknown route")
+        file = (_DIST / path).resolve()
+        if path and file.is_file() and _DIST.resolve() in file.parents:
+            return FileResponse(file)
+        return FileResponse(_DIST / "index.html")  # client-side routes

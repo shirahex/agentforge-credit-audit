@@ -123,3 +123,22 @@ def test_invalid_file_is_rejected():
 def test_model_card():
     card = client.get("/api/model").json()
     assert card["meta"]["test"]["auc"] > 0.7 and "balanced" in card["meta"]["policies"]
+
+
+def test_score_route_scores_without_agents():
+    app = sample("terms").model_dump()
+    out = client.post("/api/score", json=app).json()
+    assert out["decision"] == "refused" and 0 < out["default_probability"] < 1 and out["top_factors"]
+    shorter = {**app, "duration_months": 8}
+    assert client.post("/api/score", json=shorter).json()["default_probability"] < out["default_probability"]
+
+
+def test_demo_limit_answers_429(monkeypatch):
+    from app import config, main
+
+    monkeypatch.setattr(config, "DEMO_AUDITS_PER_HOUR", 1)
+    main._started.clear()
+    monkeypatch.setattr(main, "service", lambda: type("S", (), {"start": lambda self, a: "run-x"})())
+    assert client.post("/api/audits", json=sample("approved").model_dump()).status_code == 200
+    assert client.post("/api/audits", json=sample("approved").model_dump()).status_code == 429
+    main._started.clear()

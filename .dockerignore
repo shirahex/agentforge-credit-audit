@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.venv
+**/venv
+**/__pycache__
+**/.pytest_cache
+backend/.env
+backend/.llm_cache.json
+backend/data
+eval
+docs
+.git

@@ -86,14 +86,14 @@ function GroupRates({ a }: { a: AttributeFairness }) {
 function FairnessSection({ f }: { f: FairnessComparison }) {
   return (
     <section className="mt-16">
-      <h2 className="text-2xl font-semibold">Fairness across groups</h2>
+      <h2 className="text-[18px] font-semibold">Fairness across groups</h2>
       <p className="mt-2 max-w-3xl text-muted">
         Share of files approved in each group of the {f.full.files} test files, computed with Fairlearn. The approval gap
         is the demographic parity difference; the equalized odds gap compares how often good payers, and bad payers, are
         approved in each group. The right column is a model that never sees sex, age or foreign-worker status: what it
         still shows reaches the decision through correlated attributes.
       </p>
-      <div className="mt-6 overflow-x-auto rounded-panel bg-surface ring-1 ring-hairline">
+      <div className="mt-6 overflow-x-auto card">
         <table className="w-full min-w-[44rem] text-left">
           <thead className="border-b border-hairline text-sm text-muted">
             <tr>
@@ -152,8 +152,8 @@ export function Model() {
   return (
     <>
       <header className="max-w-3xl">
-        <h1 className="text-4xl font-semibold sm:text-5xl">The model under audit</h1>
-        <p className="mt-4 text-lg text-muted">
+        <h1 className="text-[26px] font-semibold leading-tight">Model and fairness</h1>
+        <p className="mt-1 text-muted">
           A calibrated LightGBM model trained on {meta.data.train_rows} German Credit files and tested on {meta.data.test_rows}{' '}
           it never saw. Predicted risk can only grow with the duration, the amount and the instalment rate, so a smaller
           request never scores worse.
@@ -161,9 +161,9 @@ export function Model() {
         <p className="num mt-2 text-sm text-faint">{meta.version}</p>
       </header>
 
-      <section className="mt-12">
-        <h2 className="text-2xl font-semibold">Accuracy on the test set</h2>
-        <div className="mt-5 overflow-x-auto rounded-panel bg-surface ring-1 ring-hairline">
+      <section className="mt-10">
+        <h2 className="text-[18px] font-semibold">Accuracy on the test set</h2>
+        <div className="mt-5 overflow-x-auto card">
           <table className="w-full min-w-[36rem] text-left">
             <thead className="border-b border-hairline text-sm text-muted">
               <tr>
@@ -319,12 +319,12 @@ export function Model() {
       )}
 
       <section className="mt-16">
-        <h2 className="text-2xl font-semibold">Decision policy</h2>
+        <h2 className="text-[18px] font-semibold">Decision policy</h2>
         <p className="mt-2 max-w-2xl text-muted">
           The dataset states that approving a bad payer costs five times more than refusing a good one. Two thresholds
           are computed on out-of-fold predictions; the balanced one is in use.
         </p>
-        <div className="mt-5 overflow-x-auto rounded-panel bg-surface ring-1 ring-hairline">
+        <div className="mt-5 overflow-x-auto card">
           <table className="w-full min-w-[40rem] text-left">
             <thead className="border-b border-hairline text-sm text-muted">
               <tr>
@@ -364,14 +364,14 @@ export function Model() {
 
       {full && unaware && (
         <section className="mt-16">
-          <h2 className="text-2xl font-semibold">What the audit delivers</h2>
+          <h2 className="text-[18px] font-semibold">What the audit delivers</h2>
           <p className="mt-2 max-w-2xl text-muted">
             The five agents replayed on the {full.files} test files, for the audited model and for a variant trained
             without sex, age and foreign-worker status.
           </p>
           <div className="mt-6 grid gap-10 lg:grid-cols-2">
             <div>
-              <p className="num font-display text-6xl font-semibold tracking-tight">{pct(full.recourse_rate)}</p>
+              <p className="num text-5xl font-semibold tracking-tight">{pct(full.recourse_rate)}</p>
               <p className="mt-1 max-w-sm text-soft">
                 of the {full.refused} refusals leave with at least one verified way to approval, {full.mean_paths.toFixed(1)}{' '}
                 on average.
@@ -380,7 +380,7 @@ export function Model() {
                 <RecourseBar s={full} />
               </div>
             </div>
-            <div className="overflow-x-auto rounded-panel bg-surface ring-1 ring-hairline">
+            <div className="overflow-x-auto card">
               <table className="w-full text-left">
                 <thead className="border-b border-hairline text-sm text-muted">
                   <tr>
@@ -435,7 +435,7 @@ export function Model() {
 
       {summary && (
         <section className="mt-16 max-w-3xl">
-          <h2 className="text-2xl font-semibold">What the model looks at</h2>
+          <h2 className="text-[18px] font-semibold">What the model looks at</h2>
           <p className="mt-2 text-muted">Average weight of each attribute in the score across the test files (mean absolute SHAP value).</p>
           <ul className="mt-6 space-y-2.5">
             {summary.shap_importance.map((s) => (

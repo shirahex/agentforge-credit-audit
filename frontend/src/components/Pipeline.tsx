@@ -28,7 +28,7 @@ function Glyph({ state, index, x }: { state: StepState; index: number; x: number
       <path
         d={`M${x - 8} ${Y} l5.5 5.5 l10.5 -11`}
         fill="none"
-        stroke="#fff"
+        stroke="var(--color-surface)"
         strokeWidth="2.6"
         strokeLinecap="round"
         strokeLinejoin="round"

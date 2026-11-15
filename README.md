@@ -13,6 +13,21 @@ Team AgentForge: Marouane Daouki, Imane Alouani.
 
 ![Audit in progress, first attempt rejected by the auditor](docs/screenshots/02-audit-loop.png)
 
+## Interface
+
+- `/` product page: the problem, the five agents (scroll story), the evaluation figures, fairness and documents.
+- `/app` console: dashboard, audits, review inbox, new audit with a live model score, case workspace
+  (live agent activity, ways to approval, what-if simulator, fairness, letter and PDF report), model and fairness.
+- Light and dark mode, `Ctrl K` to jump to any applicant.
+
+## Hosting (free)
+
+The `Dockerfile` builds the interface and serves it from the API, so the app is one web service.
+On Render: New > Blueprint, choose this repository (`render.yaml`, free plan, no card), then paste
+the Groq key as `LLM_API_KEY` in the service settings. `DEMO_AUDITS_PER_HOUR` limits how many audits
+one visitor can start, to protect the free model quota. Stored audits are lost when the free
+instance restarts.
+
 ## What it does
 
 ```

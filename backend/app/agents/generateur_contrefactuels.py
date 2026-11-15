@@ -13,12 +13,14 @@ follows a fixed escalation ladder:
     attempt 2  loan terms and financial situation, three changes at most
     attempt 3  same attributes, wider ranges
 """
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app import config
 from app.agents.base import Recorder, guarded_answer, plural
+from app.domain import features
 from app.domain.features import ACTIONABLE, BY_NAME
 from app.graph.state import AuditState
 from app.tools.counterfactuals import REQUEST_SCOPE, closest_miss, generate_counterfactuals, permitted_moves
@@ -61,6 +63,14 @@ class Plan(BaseModel):
     def key(self) -> tuple:
         return (tuple(sorted(self.features)), self.max_changes, self.widen)
 
+
+
+def plain_names(text: str) -> str:
+    """Raw attribute names a model may quote ("duration_months") become their labels ("duration")."""
+    for f in sorted(features.FEATURES, key=lambda f: -len(f.name)):
+        if "_" in f.name:
+            text = re.sub(rf"\b{f.name}\b", f.label.lower(), text)
+    return text
 
 def ladder(attempt: int, available: list[str]) -> Plan:
     request = [f for f in available if f in REQUEST_SCOPE]
@@ -151,4 +161,4 @@ def run(state: AuditState) -> AuditState:
     log = (f"Attempt {attempt} ({scope}, up to {plural(plan.max_changes, 'change')}"
            f"{', wider ranges' if plan.widen else ''}): {found}.")
     return {"counterfactuals": cfs, "attempts": attempt, "cf_plans": tried + [plan.key()],
-            "log": log, "reasoning": plan.rationale, "mode": mode, "tool_calls": rec.calls, "status": "completed"}
+            "log": log, "reasoning": plain_names(plan.rationale), "mode": mode, "tool_calls": rec.calls, "status": "completed"}

@@ -43,6 +43,12 @@ LLM_MAX_TOKENS_SCALE = float(os.getenv("LLM_MAX_TOKENS_SCALE", "1"))
 # Extra fields merged into every request body, as JSON, for example {"reasoning_effort": "low"}.
 LLM_EXTRA_BODY = json.loads(os.getenv("LLM_EXTRA_BODY") or "{}")
 
+# --- Public demo
+# Audits a visitor may start per hour (0: no limit). Set it when the app is hosted for other people.
+DEMO_AUDITS_PER_HOUR = int(os.getenv("DEMO_AUDITS_PER_HOUR", "0"))
+# Other origins allowed to call the API from a browser, comma separated.
+EXTRA_ORIGINS = [o.strip() for o in os.getenv("EXTRA_ORIGINS", "").split(",") if o.strip()]
+
 # --- Fairness audit (task I1)
 # Age bands used for the group metrics: upper bounds, inclusive. The last band is open.
 AGE_BANDS = ((25, "18-25"), (40, "26-40"), (200, "41+"))

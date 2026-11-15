@@ -1,25 +1,75 @@
-@import '@fontsource-variable/inter';
+@import '@fontsource-variable/ibm-plex-sans';
 @import 'tailwindcss';
 
-/* Design tokens. Every colour, radius and font used in the interface is
-   declared here once. Green, red and amber only ever mean approved,
-   refused and human review. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* Design tokens. Every colour is declared once, as a CSS variable, so the
+   console can switch to dark mode by swapping the variables only.
+   Green, red and amber only ever mean approved, refused and human review. */
+:root,
+[data-theme='light'] {
+  --paper: #f2f3ef;
+  --surface: #ffffff;
+  --raised: #fafbf8;
+  --ink: #0e1626;
+  --soft: #2e3746;
+  --muted: #637081;
+  --faint: #9aa3ae;
+  --hairline: #e1e4de;
+  --accent: #2b4eff;
+  --accent-ink: #1e3bd6;
+  --accent-wash: #e9edff;
+  --positive: #0f7b57;
+  --negative: #cf3a2e;
+  --caution: #b9730b;
+  --night: #0a0f1c;
+  --shadow: 0 1px 0 rgb(14 22 38 / 0.04), 0 1px 2px rgb(14 22 38 / 0.06);
+  --shadow-lift: 0 1px 0 rgb(14 22 38 / 0.04), 0 12px 32px -12px rgb(14 22 38 / 0.18);
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --paper: #0b101b;
+  --surface: #121a29;
+  --raised: #172031;
+  --ink: #e9edf5;
+  --soft: #c3cad6;
+  --muted: #8b95a6;
+  --faint: #5d6778;
+  --hairline: #232d40;
+  --accent: #6f8bff;
+  --accent-ink: #9db0ff;
+  --accent-wash: #1a2448;
+  --positive: #3cc28f;
+  --negative: #ff6b5e;
+  --caution: #f0a83a;
+  --shadow: 0 1px 0 rgb(0 0 0 / 0.3);
+  --shadow-lift: 0 16px 40px -16px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
 @theme {
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter Variable', 'Segoe UI', sans-serif;
-  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter Variable', 'Segoe UI', sans-serif;
-  --color-canvas: #f5f5f7;
-  --color-surface: #ffffff;
-  --color-ink: #1d1d1f;
-  --color-soft: #424245;
-  --color-muted: #6e6e73;
-  --color-faint: #a1a1a6;
-  --color-hairline: #e5e5ea;
-  --color-accent: #0071e3;
-  --color-positive: #1f8a4c;
-  --color-negative: #c9342b;
-  --color-caution: #b26a00;
-  --radius-panel: 22px;
-  --radius-control: 12px;
+  --font-sans: 'IBM Plex Sans Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'IBM Plex Sans Variable', 'Segoe UI', system-ui, sans-serif;
+  --color-canvas: var(--paper);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-soft: var(--soft);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-hairline: var(--hairline);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-wash: var(--accent-wash);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-caution: var(--caution);
+  --color-night: var(--night);
+  --radius-panel: 14px;
+  --radius-control: 9px;
+  --shadow-card: var(--shadow);
+  --shadow-lift: var(--shadow-lift);
 }
 
 html {
@@ -27,38 +77,51 @@ html {
 }
 
 body {
-  background: var(--color-canvas);
-  color: var(--color-ink);
+  background: var(--paper);
+  color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 14.5px;
   line-height: 1.5;
-  font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  transition: background-color 0.2s ease;
 }
 
 h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  letter-spacing: -0.022em;
+  letter-spacing: -0.018em;
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  border-radius: 6px;
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+::selection {
+  background: var(--accent-wash);
 }
 
 .num {
   font-variant-numeric: tabular-nums;
 }
 
+.card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+}
+
 /* One entrance, used when a result section first receives its data. */
 @keyframes settle {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -66,24 +129,71 @@ h3 {
   }
 }
 .settle {
-  animation: settle 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: settle 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
 @keyframes breathe {
   0%,
   100% {
-    opacity: 0.25;
+    opacity: 0.35;
     transform: scale(1);
   }
   50% {
     opacity: 0;
-    transform: scale(1.55);
+    transform: scale(1.9);
   }
 }
 .breathe {
   transform-origin: center;
   transform-box: fill-box;
-  animation: breathe 1.5s ease-in-out infinite;
+  animation: breathe 1.4s ease-in-out infinite;
+}
+
+/* The decision stamp: the one bold moment of the interface. */
+@keyframes stamp {
+  0% {
+    opacity: 0;
+    transform: rotate(-9deg) scale(1.9);
+  }
+  60% {
+    opacity: 1;
+    transform: rotate(-9deg) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(-9deg) scale(1);
+  }
+}
+.stamp {
+  animation: stamp 0.55s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--hairline) 25%, var(--raised) 50%, var(--hairline) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 6px;
+}
+
+/* Scroll reveal on the landing page (set by useReveal). */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
 }
 
 details > summary {
@@ -94,10 +204,21 @@ details > summary::-webkit-details-marker {
   display: none;
 }
 
+input[type='range'] {
+  accent-color: var(--accent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .settle,
-  .breathe {
+  .breathe,
+  .stamp,
+  .skeleton {
     animation: none;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
   html {
     scroll-behavior: auto;

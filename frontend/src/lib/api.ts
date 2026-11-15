@@ -6,6 +6,7 @@ import type {
   Health,
   LoanApplication,
   ModelCard,
+  ScoreResult,
   Sample,
   Schema,
 } from '../types'
@@ -36,6 +37,7 @@ export const getSamples = () => get<Sample[]>('/api/samples')
 export const getModelCard = () => get<ModelCard>('/api/model')
 export const listAudits = () => get<AuditSummary[]>('/api/audits')
 export const getAudit = (id: string) => get<AuditRecord>(`/api/audits/${id}`)
+export const scoreFile = (application: LoanApplication) => post<ScoreResult>('/api/score', application)
 export const startAudit = (application: LoanApplication) =>
   post<{ run_id: string }>('/api/audits', application).then((r) => r.run_id)
 export const sendReview = (id: string, outcome: Decision, reviewer: string, comment: string) =>
