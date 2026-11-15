@@ -1,0 +1,12 @@
+# ML and audit libraries. Versions to be pinned in task M1 after the first
+# successful install on both machines.
+pandas
+numpy
+scikit-learn
+lightgbm
+shap
+dice-ml
+fairlearn
+matplotlib
+jupyter
+reportlab

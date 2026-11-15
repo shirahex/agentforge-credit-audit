@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Secrets
+.env
+
+# Data and models (downloaded or generated locally)
+ml/data/*
+!ml/data/README.md
+ml/models/*
+!ml/models/.gitkeep
+*.sqlite
+*.db
+
+# Node
+node_modules/
+dist/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
