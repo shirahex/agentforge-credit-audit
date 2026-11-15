@@ -1,9 +1,5 @@
-# Extra libraries for ml/ (training, reports, notebook) and for the tasks
-# still to come (Fairlearn audit, PDF report). Tested with shap 0.54,
-# fairlearn 0.15, matplotlib 3.11.
+# Extra libraries for ml/ (training, reports, notebook). Tested with shap 0.54, matplotlib 3.11.
 -r requirements.txt
 shap
-fairlearn
 matplotlib
 jupyter
-reportlab

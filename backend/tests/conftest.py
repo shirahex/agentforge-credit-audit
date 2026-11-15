@@ -1,13 +1,20 @@
-"""Tests never call a real language model.
+"""Test isolation.
 
-backend/.env may point the agents at Ollama or a hosted provider. Without
-this fixture the tests would then depend on that model's answers. Tests
-that need an LLM replace it with a scripted one (see test_agents.py).
+* Durable state (checkpoints, runs, cases, traces, reports) goes to a temporary folder.
+* Tests never call a real language model: backend/.env may point the agents at Groq or
+  Ollama, and the tests must not depend on that model's answers. A test that needs an LLM
+  replaces it with a scripted one (fixture `scripted_llm`).
 """
-import pytest
+import os
+import tempfile
 
-from app import config
-from app.llm import client
+os.environ["DATA_DIR"] = tempfile.mkdtemp(prefix="agentforge-tests-")
+os.environ.setdefault("LLM_PROVIDER", "none")
+
+import pytest  # noqa: E402
+
+from app import config  # noqa: E402
+from app.llm import client  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

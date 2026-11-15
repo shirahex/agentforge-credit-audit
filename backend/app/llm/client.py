@@ -89,6 +89,12 @@ def chain() -> list[Provider]:
     return out
 
 
+def _endpoint() -> tuple[str, str]:
+    """Base URL and model of the primary provider (kept for the evaluation scripts)."""
+    providers = chain()
+    return (providers[0].base, providers[0].model) if providers else ("", "")
+
+
 def enabled() -> bool:
     return bool(chain())
 
@@ -171,13 +177,14 @@ def _post(p: Provider, body: dict) -> httpx.Response | None:
 
 def _ask(p: Provider, system: str, user: str, temperature: float, max_tokens: int) -> dict | None:
     body = {
-        "model": p.model, "temperature": temperature, "max_tokens": max_tokens,
+        "model": p.model, "temperature": temperature, "max_tokens": int(max_tokens * config.LLM_MAX_TOKENS_SCALE),
         "response_format": {"type": "json_object"},
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
     }
     if p.name == "groq" and "gpt-oss" in p.model:
         # Reasoning models: keep the hidden reasoning short and out of the answer.
-        body.update(reasoning_effort="low", include_reasoning=False, max_tokens=max(max_tokens, 1500))
+        body.update(reasoning_effort="low", include_reasoning=False, max_tokens=max(body["max_tokens"], 1500))
+    body.update(config.LLM_EXTRA_BODY)  # explicit settings win over the defaults above
 
     for attempt in range(3):
         resp = _post(p, body)

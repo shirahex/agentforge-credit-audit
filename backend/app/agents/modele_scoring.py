@@ -92,7 +92,8 @@ def run(state: AuditState) -> AuditState:
         for f in score.top_factors:
             if f.feature in a.raises_risk + a.lowers_risk:
                 words = [w for w in f"{f.label} {f.value_label}".lower().replace("(", " ").replace(")", " ").split()
-                         if len(w) > 3 and w not in ("than", "more", "less", "with", "this", "bank", "years")]
+                         if len(w) >= 3 and w not in ("than", "more", "less", "with", "this", "bank", "years", "the",
+                                                      "and", "for", "not", "per", "from", "level", "other")]
                 named += any(w.strip(",.;:") in said for w in words)
         if named < min(2, len(score.top_factors)):
             return "the explanation does not name its factors; name at least two of them by label and value"

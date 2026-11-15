@@ -16,7 +16,12 @@ ml/data/raw/*
 !ml/data/raw/german.names.txt
 *.sqlite
 *.db
-eval/results/
+# Evaluation results: the tables are versioned (frozen for the report), the per-file dumps are not
+eval/results/per_file_*.csv
+eval/results/llm_files.csv
+
+# Durable state of the backend: checkpoints, runs, cases, traces, PDF reports
+backend/data/
 
 # Node
 node_modules/

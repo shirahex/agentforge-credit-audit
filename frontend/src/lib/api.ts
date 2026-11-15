@@ -41,6 +41,10 @@ export const startAudit = (application: LoanApplication) =>
 export const sendReview = (id: string, outcome: Decision, reviewer: string, comment: string) =>
   post<AuditRecord>(`/api/audits/${id}/review`, { outcome, reviewer, comment })
 
+export const reportUrl = (id: string) => `/api/audits/${id}/report`
+export const letterUrl = (id: string) => `/api/audits/${id}/letter`
+export const traceUrl = (id: string) => `/api/audits/${id}/trace`
+
 /** Subscribes to the audit trail. Returns a function that closes the stream. */
 export function streamEvents(runId: string, onEvent: (event: AgentEvent) => void, onEnd: () => void): () => void {
   const source = new EventSource(`/api/audits/${runId}/events`)
