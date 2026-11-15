@@ -1,14 +1,19 @@
-# Runtime: API, agent graph, model, counterfactual search, tests.
-# Tested with Python 3.13 and fastapi 0.163, langgraph 1.2, pydantic 2.14,
-# lightgbm 4.7, pandas 3.1, numpy 2.5, scikit-learn 1.9, dice-ml 0.12.
+# Runtime: API, agent graph, model, counterfactual search, fairness audit, PDF report, tests.
+# Tested with Python 3.13 and fastapi 0.163, langgraph 1.2, langgraph-checkpoint-sqlite 3.1,
+# pydantic 2.13, lightgbm 4.7, pandas 3.0, numpy 2.5, scikit-learn 1.9, dice-ml 0.12,
+# fairlearn 0.15, reportlab 5.0, pypdf 6.17.
 fastapi>=0.115
 uvicorn[standard]>=0.30
 pydantic>=2.7
 langgraph>=1.0
+langgraph-checkpoint-sqlite>=3.0
 httpx>=0.27
 numpy>=1.26
 pandas>=2.1
 scikit-learn>=1.4
 lightgbm>=4.0
 dice-ml>=0.11
+fairlearn>=0.12
+reportlab>=4.0
 pytest>=8.0
+pypdf>=4.0
