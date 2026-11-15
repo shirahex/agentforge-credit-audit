@@ -39,11 +39,12 @@ past applicants). A proposal is sound when it passes all four.
 
 - `figures.py`: figures of the result tables, written to `results/figures/` and read in `docs/result-analysis.md`
 - `demo_reports.py`: PDF audit report of each of the six demo files, written to `docs/sample-reports/`
+- `llm_preflight.py`: checks that the configured model returns usable JSON and writes the answer budget it needs to `backend/.env`
 - `measure_llm_limits.py`: limits of the configured LLM provider and the matching `LLM_MIN_INTERVAL_SECONDS` (see `docs/llm-limits.md`)
 
 ## State on 15 November 2026
 
-Tables 1 to 4 of `RESULTS.md` are final for the agents on rules. The
-`single_prompt` baseline and the language model statistics need a provider
-key: the code is tested with a scripted model, the numbers are still to be
-produced with `--llm`.
+Tables 1 to 4 of `RESULTS.md`: agents on rules, 200 files. Table 5 and the
+`single_prompt` row: Groq free plan, `openai/gpt-oss-20b`, 12 files
+(`--llm --llm-files 12`). The latencies of `RESULTS.md` were measured on a
+laptop; the README quotes those of the development machine.

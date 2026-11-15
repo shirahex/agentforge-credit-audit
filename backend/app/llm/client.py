@@ -26,7 +26,8 @@ from app import config
 
 _DEFAULTS = {
     "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai", "gemini-3.8-flash"),
-    "groq": ("https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),
+    # Groq retired llama-3.3-70b-versatile and llama-3.1-8b-instant for free keys on 16 August 2026.
+    "groq": ("https://api.groq.com/openai/v1", "openai/gpt-oss-20b"),
     "ollama": ("http://localhost:11434/v1", "llama3.2"),
     "openai_compatible": ("", ""),
 }
@@ -91,16 +92,18 @@ def ask_json(system: str, user: str, temperature: float = 0.2, max_tokens: int =
     if not base or not model:
         USAGE.last_error = "LLM_BASE_URL or LLM_MODEL missing"
         return None
-    key = hashlib.sha256(f"{model}|{temperature}|{system}|{user}".encode()).hexdigest()
+    key = hashlib.sha256(f"{model}|{temperature}|{max_tokens}|{config.LLM_EXTRA_BODY}|{system}|{user}".encode()).hexdigest()
     if key in _cache:
         USAGE.cached += 1
         return _cache[key]
 
+    max_tokens = int(max_tokens * config.LLM_MAX_TOKENS_SCALE)
     body = {
         "model": model, "temperature": temperature, "max_tokens": max_tokens,
         "response_format": {"type": "json_object"},
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
     }
+    body.update(config.LLM_EXTRA_BODY)
     headers = {"Content-Type": "application/json"}
     if config.LLM_API_KEY:
         headers["Authorization"] = f"Bearer {config.LLM_API_KEY}"

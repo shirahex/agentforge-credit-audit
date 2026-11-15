@@ -32,66 +32,86 @@ therefore sends roughly 2,000 to 3,500 prompt tokens and receives at most
 
 ## What the free tiers allow
 
-Read on 15 November 2026. These figures change often and the public tables
-disagree with each other, so the last column says where each one comes from.
-They are not measurements on our key.
+Read on 15 November 2026. These figures change often: Groq retired
+`llama-3.3-70b-versatile` and `llama-3.1-8b-instant` for free and developer
+keys on 16 August 2026 ([Groq deprecations](https://console.groq.com/docs/deprecations)),
+so both names now answer HTTP 404. The replacement used here is
+`openai/gpt-oss-20b`.
 
 | Provider and model | Per minute | Per day | Source |
 |---|---|---|---|
-| Groq, `llama-3.3-70b-versatile` | 30 requests, 12,000 tokens | 1,000 requests, 100,000 tokens | [Grizzly Peak Software](https://grizzlypeaksoftware.com/articles/p/groq-api-free-tier-limits-in-2026-what-you-actually-get-uwysd6mb), quoting Groq's documentation. Other tables give 6,000 tokens per minute or 14,400 requests per day |
-| Groq, `llama-3.1-8b-instant` | 30 requests, 6,000 tokens | 14,400 requests, 500,000 tokens | same |
-| Gemini, `gemini-3.8-flash` (default in `client.py`) | 5 requests, 250,000 input tokens | 20 requests | [ScriptByAI](https://www.scriptbyai.com/gemini-api-free-tier-limits/), from the table shown in Google AI Studio |
+| Groq, `openai/gpt-oss-20b` | 8,000 tokens | 1,000 requests | **Measured on our key** (response headers, below) |
+| Gemini, `gemini-3.8-flash` (default in `client.py`) | 5 requests, 250,000 input tokens | 20 requests | [ScriptByAI](https://www.scriptbyai.com/gemini-api-free-tier-limits/), from the table shown in Google AI Studio. Not measured |
 | Ollama, local | no quota | no quota | limited by the machine |
 
 Google no longer publishes per-model free quotas in its documentation: they
 are shown for each project in Google AI Studio
 ([Developers Digest](https://www.developersdigest.tech/rate-limits/google), reading the official page on 17 October 2026).
+At 20 requests a day, Gemini 3.8 Flash on the free tier would run two to four
+audits a day: not usable for this project unless AI Studio shows otherwise.
 
-What follows from these figures:
+## Measured on our key: Groq, `openai/gpt-oss-20b`
 
-- **Gemini 3.8 Flash on the free tier is not usable for this project.** At
-  20 requests a day, it runs two to four audits a day. A Flash-Lite model, a
-  paid tier or another provider is needed. To be confirmed in AI Studio.
-- **Groq 70B: the daily token cap is the real limit.** At about 6,000 tokens
-  per audit, 100,000 tokens a day is about 16 audits. Enough for the live
-  demonstration, not for an evaluation on 30 files in one day.
-- **Groq 8B instant** allows about 80 audits a day and is the candidate for
-  the evaluation runs, with the 70B model kept for the demonstration.
+Measured on 15 November 2026 with `python eval/llm_preflight.py` and
+`python eval/measure_llm_limits.py`, free plan, no payment card.
+
+Headers returned by the provider:
+
+| Header | Value |
+|---|---|
+| `x-ratelimit-limit-requests` | 1,000 (per day) |
+| `x-ratelimit-limit-tokens` | 8,000 (per minute) |
+
+`gpt-oss-20b` is a reasoning model: its reasoning is counted in `max_tokens`.
+With the answer budgets of the agents (500 tokens), the first call failed
+with `json_validate_failed`; with four times the budget it answered. Hence
+`LLM_MAX_TOKENS_SCALE=4`, found and written to `backend/.env` by the
+preflight script.
+
+One audit of each demo file, `LLM_MIN_INTERVAL_SECONDS=12`:
+
+| Demo file | LLM calls | Prompt tokens | Completion tokens | Steps fallen back to rules | Duration |
+|---|---|---|---|---|---|
+| approved | 4 | 1,813 | 2,297 | 0 of 4 | 55 s |
+| borderline | 4 | 1,855 | 1,953 | 0 of 4 | 56 s |
+| sensitive | 6 | 2,984 | 3,567 | 0 of 5 | 84 s |
+| terms | 8 | 3,998 | 4,866 | 1 of 7 | 141 s |
+| second_attempt | 9 | 5,011 | 5,710 | 0 of 9 | 126 s |
+| no_path | 9 | 4,928 | 6,936 | 0 of 9 | 130 s |
+
+Mean: 1,148 tokens per call, of which more than half is completion
+(reasoning included). The prompt sizes estimated above (200 to 570 tokens per
+call) match the measured prompt tokens.
 
 ## Interval to set
 
     interval = max(60 / requests per minute, 60 x tokens per call / tokens per minute)
 
-With about 900 tokens per call (prompt plus answer):
+| Provider and model | Tokens per call | Tokens per minute | `LLM_MIN_INTERVAL_SECONDS` | Status |
+|---|---|---|---|---|
+| Groq `openai/gpt-oss-20b` | 1,148 | 8,000 | **10** (8.6 s plus a margin; 12 was used for the runs) | measured |
+| Gemini free tier, 5 requests per minute | | | **13** | computed from published figures |
+| Ollama | | | **0** | no quota |
 
-| Provider and model | From requests | From tokens | `LLM_MIN_INTERVAL_SECONDS` |
-|---|---|---|---|
-| Groq `llama-3.3-70b-versatile` | 2.0 s | 4.5 s | **5** |
-| Groq `llama-3.1-8b-instant` | 2.0 s | 9.0 s | **10** |
-| Gemini free tier, 5 requests per minute | 12.0 s | negligible | **13** |
-| Ollama | none | none | **0** |
+Settings retained for Groq, in `backend/.env`:
 
-An audit of the `no_path` file (9 calls) then takes about 45 s on Groq 70B.
-`STEP_DELAY_SECONDS` can be set to 0 when a provider is used: the calls
-already pace the interface.
+    LLM_PROVIDER=groq
+    LLM_MODEL=openai/gpt-oss-20b
+    LLM_MIN_INTERVAL_SECONDS=10
+    LLM_MAX_TOKENS_SCALE=4
+    STEP_DELAY_SECONDS=0
 
-## Measuring on our own key (to do with the real provider)
+Consequences for the project:
 
-The table above is computed from published figures. The measured values come
-from one command, to run once `backend/.env` holds the provider and the key:
+- An audit takes one to two minutes with this provider, against 0.1 s on
+  rules. The live demonstration should use one or two files with the model
+  and the others on rules, or a local Ollama model.
+- The daily cap of 1,000 requests allows about 150 audits a day. The token
+  cap per minute is the binding limit, not the daily one.
+- The burst test (`--burst 40`) was not run, to keep the daily quota for the
+  evaluation: the per-minute request cap is not measured.
 
-    python eval/measure_llm_limits.py --burst 40
-
-It prints the rate-limit headers returned by the provider, the number of
-calls accepted before the first HTTP 429, the exact tokens and the latency of
-one audit of each demo file, and the `LLM_MIN_INTERVAL_SECONDS` line to copy
-into `backend/.env`. Paste its output here and replace the published figures.
-
-| Measured on | Provider and model | Calls before 429 | Tokens per audit | Seconds per audit | Interval retained |
-|---|---|---|---|---|---|
-| to do | | | | | |
-
-What the client already does when a limit is hit: HTTP 429 and 5xx answers
-are retried twice with a pause; after that the step falls back to its rules,
-the audit continues, and the step is marked `rules` in the trail. An audit
-never fails because of the provider.
+What the client does when a limit is hit: HTTP 429 and 5xx answers are
+retried twice with a pause; after that the step falls back to its rules, the
+audit continues, and the step is marked `rules` in the trail. An audit never
+fails because of the provider.

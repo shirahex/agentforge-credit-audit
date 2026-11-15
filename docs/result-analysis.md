@@ -3,8 +3,8 @@
 Shared task S3, first version. Reading of the evaluation tables
 (`eval/results/RESULTS.md`), with the figures of `eval/results/figures/` and
 the limits of what they show. All figures: 200 held-out files, 99 of them
-refused by the model, agents on rules. The runs with a language model are
-not done yet (section 6).
+refused by the model, agents on rules. Section 6 reports the runs with a
+language model, on 12 files.
 
 ## 1. The question
 
@@ -119,13 +119,71 @@ exhaustive search is also about 45 times faster.
 - All intervals are wide. With 200 files, a gap of 9 points between women
   and men is compatible with almost no gap. We report it, we do not claim it.
 
-## 6. Limits
+## 6. Runs with a language model
 
-1. **No run with a language model yet.** Tables 1 to 4 use the agents on
-   rules. The single-prompt baseline, the share of answers rejected by each
-   guard, the fallbacks, tokens and latency need a provider key. The code is
-   tested with a scripted model; `python eval/run_eval.py --llm` produces
-   the tables.
+Groq free plan, `openai/gpt-oss-20b`, the first 12 test files (4 refused by
+the model), 15 November 2026. Twelve files is a small sample: the figures
+below show how the system behaves, they are not precise rates.
+
+### The five agents with the model
+
+| Agent | Steps | Written by the model | Answers | Accepted | Rejected: invented number | Fallback to rules | Tokens per step |
+|---|---|---|---|---|---|---|---|
+| Analyste-Dossier | 12 | 12 | 16 | 75% | 25% | 0% | 828 |
+| Modèle-Scoring | 12 | 12 | 13 | 92% | 8% | 0% | 1,159 |
+| Générateur-Contrefactuels | 7 | 7 | 7 | 100% | 0% | 0% | 1,399 |
+| Vérificateur-Équité | 15 | 15 | 15 | 100% | 0% | 0% | 825 |
+| Arbitre et Rédacteur | 12 | 12 | 12 | 100% | 0% | 0% | 1,978 |
+
+- **The number guard is not decorative.** 5 answers out of 63 (8%) quoted a
+  number that no tool had produced: 4 analyst notes and 1 score explanation.
+  Each was sent back with the objection and the second answer passed. No
+  answer was rejected for its structure or by an agent-specific check.
+- **No step fell back to rules** on these 12 files (58 steps). On the six
+  demo files measured separately, 1 step of 38 did.
+- **Decisions and escalations are unchanged.** They come from tools, so they
+  are identical to the run on rules on all 12 files, and the same 3 refusals
+  leave with a way to approval.
+- **The planner does change the search.** The model's plans name fewer
+  attributes than the fixed ladder: one refusal is solved at the first
+  attempt instead of the second, and the 3 refusals receive 3 ways to
+  approval in total instead of 8. Fewer, more targeted proposals; whether
+  that is better for the applicant is open.
+- **Cost:** 5.3 calls and about 5,800 tokens per file (2,550 prompt, 3,260
+  completion, reasoning included), 73 s per file with a 12 s pause between
+  calls. On rules the same audit takes 0.1 s.
+
+### The baseline through a single prompt
+
+The same 12 files, one prompt each, no tool: the model must give the
+decision, the probability, three factors and up to three sets of changes.
+
+| | Single prompt | Five agents |
+|---|---|---|
+| Decision equal to the scoring model's | 8 of 12 | 12 of 12 (the model's decision is the tool's output) |
+| Files approved by the scoring model that it refuses | 4 of 8 | 0 |
+| Mean error on the default probability | 17 points | 0 |
+| Named factors that are among the 6 SHAP factors | 64% | 100% (enforced by a guard) |
+| Proposals delivered | 24 | 3 |
+| of which respect the recourse rules | 0 of 24 | 3 of 3 |
+| of which pass every check | 0 of 24 | 3 of 3 |
+| Decisions depending on a protected attribute caught | 0 of 2 | 2 of 2 |
+
+Without tools, the language model does not reproduce the scoring model: it
+answers a probability between 18% and 35% whatever the file (the true values
+range from 7% to 80%), refuses half of the files the scoring model approves,
+and none of its 24 proposals is something the applicant may do under the
+recourse rules. 15 of them would flip the decision if applied, which makes
+them more dangerous than useless: they read as valid advice. This is the
+clearest argument for the design rule "numbers come from tools".
+
+## 7. Limits
+
+1. **Small sample with the language model.** Tables 1 to 4 use the agents
+   on rules on 200 files. The runs with a model cover 12 files and one model
+   (`openai/gpt-oss-20b`), because of the free quota. A second model (a local
+   Mistral or Phi through Ollama) and 30 files or more would turn the
+   observations of section 6 into rates.
 2. **The judge and the auditor share their tools.** Soundness is measured
    with the checks the auditor applies. An independent criterion (for
    example a second model, or a human rating of a sample of proposals) would
