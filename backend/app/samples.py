@@ -1,43 +1,23 @@
-"""Demo applicant files used by the interface and the tests."""
+"""Demo applicant files: real test-set applicants chosen by ml/select_samples.py
+so that each one exercises a different path of the agent graph."""
+from __future__ import annotations
+
+import json
+from functools import lru_cache
+from pathlib import Path
+
 from app.schemas import LoanApplication
 
-REFUSED = LoanApplication(
-    applicant_id="DEMO-REFUSED",
-    duration_months=30,
-    credit_amount=5000,
-    age=30,
-    sex="female",
-    purpose="car",
-    housing="rent",
-    employment_years=3,
-    savings="low",
-    checking_status="none",
-)
+_FILE = Path(__file__).with_name("samples.json")
 
-APPROVED = LoanApplication(
-    applicant_id="DEMO-APPROVED",
-    duration_months=12,
-    credit_amount=2000,
-    age=45,
-    sex="male",
-    purpose="furniture",
-    housing="own",
-    employment_years=12,
-    savings="high",
-    checking_status="high",
-)
 
-BORDERLINE = LoanApplication(
-    applicant_id="DEMO-BORDERLINE",
-    duration_months=24,
-    credit_amount=4200,
-    age=33,
-    sex="male",
-    purpose="education",
-    housing="rent",
-    employment_years=3,
-    savings="low",
-    checking_status="none",
-)
+@lru_cache(maxsize=1)
+def load_samples() -> list[dict]:
+    return json.loads(_FILE.read_text(encoding="utf-8")) if _FILE.exists() else []
 
-SAMPLES = [REFUSED, APPROVED, BORDERLINE]
+
+def sample(tag: str) -> LoanApplication:
+    for s in load_samples():
+        if s["tag"] == tag:
+            return LoanApplication(**s["application"])
+    raise KeyError(tag)
